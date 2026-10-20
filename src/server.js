@@ -3,6 +3,9 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 
+// Router
+import authRoutes from "./routes/auth.routes.js";
+
 dotenv.config();
 
 const app = express();
@@ -28,6 +31,9 @@ app.get("/api/health", (req, res) => {
     message: "Server is running perfectly!",
   });
 });
+
+// Auth Routes
+app.use("/api/auth", authRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on: http://localhost:${PORT}`);
