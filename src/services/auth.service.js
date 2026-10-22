@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import prisma from "../config/prisma.js";
 import jwt from "jsonwebtoken";
 
@@ -12,6 +13,10 @@ export const registerUser = async ({ email, password }) => {
     throw new Error("Email already exists");
   }
 
+  const uniqueId = crypto.randomUUID().slice(0,8)
+  
+  const customId  = `user-${uniqueId}`
+
   //Hash Password
   const salt = await bcrypt.genSalt(10);
 
@@ -19,6 +24,7 @@ export const registerUser = async ({ email, password }) => {
 
   const newUser = await prisma.user.create({
     data: {
+      id: customId,
       email,
       password: hashedPassword,
       role: "customer",
