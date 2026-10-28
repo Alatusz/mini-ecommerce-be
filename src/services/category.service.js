@@ -107,7 +107,10 @@ export const getCategoryByIdService = async (idOrSlug) => {
 /**
  * 4. แก้ไขหมวดหมู่ (Update Category)
  */
-export const updateCategoryService = async (id, { name, slug, image, status }) => {
+export const updateCategoryService = async (
+  id,
+  { name, slug, image, status },
+) => {
   // ตรวจสอบว่ามีหมวดหมู่นี้อยู่จริงหรือไม่
   const category = await prisma.category.findUnique({
     where: { id },
@@ -121,8 +124,8 @@ export const updateCategoryService = async (id, { name, slug, image, status }) =
 
   if (name !== undefined) {
     const cleanName = name.trim();
-    // ถ้าแก้ชื่อ ต้องเช็คว่าชื่อใหม่ไปซ้ำกับคนอื่นไหม
-    const duplicateName = await prisma.category.findFirst({
+
+    const duplicateName = await prisma.product.findFirst({
       where: {
         name: cleanName,
         NOT: { id },
@@ -130,12 +133,10 @@ export const updateCategoryService = async (id, { name, slug, image, status }) =
     });
 
     if (duplicateName) {
-      throw new Error("Category name already exists");
+      throw new Error("Product name already exists");
     }
-
     updateData.name = cleanName;
-
-    // ถ้าไม่มีการส่ง slug ใหม่มา ให้ auto-generate slug จากชื่อใหม่
+    // ถ้าไม่ได้ส่ง slug มา ให้ auto-generate จากชื่อใหม่
     if (!slug) {
       updateData.slug = slugify(cleanName);
     }
@@ -157,8 +158,8 @@ export const updateCategoryService = async (id, { name, slug, image, status }) =
     updateData.slug = cleanSlug;
   }
 
-  if (image !== undefined) {
-    updateData.image = image || null;
+  if (images !== undefined) {
+    updateData.images = images || null;
   }
 
   if (status !== undefined) {
@@ -194,4 +195,3 @@ export const deleteCategoryService = async (id) => {
 
   return { message: "Category deleted successfully" };
 };
-

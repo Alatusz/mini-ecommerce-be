@@ -39,5 +39,32 @@ model Category {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
+  products Product[]
+
   @@map("categories") // ตั้งชื่อ Table ใน PostgreSQL เป็น "categories"
+}
+
+enum ProductStatus {
+  draft
+  published
+  archived
+}
+
+model Product {
+  id           String        @id
+  name         String        @unique
+  slug         String        @unique
+  description  String?
+  originalPrice Int?
+  sellPrice    Int?
+  stock        Int           @default(0)
+  images       String[]
+  status       ProductStatus @default(draft)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  categoryId String
+  categories Category @relation(fields: [categoryId], references: [id])
+
+  @@map("products") // ตั้งชื่อ Table ใน PostgreSQL เป็น "products"
 }
