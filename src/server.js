@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 
 // Router
 import authRoutes from "./routes/auth.routes.js";
+import categoryRoutes from "./routes/category.routes.js";
 
 dotenv.config();
 
@@ -32,8 +33,9 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Auth Routes
+// Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/categories", categoryRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on: http://localhost:${PORT}`);

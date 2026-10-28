@@ -13,14 +13,31 @@ enum Role {
   admin
 }
 
+enum CategoryStatus {
+  active
+  archived
+  draft
+}
 
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
-  role      Role   @default(customer)
+  role      Role     @default(customer)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("users") // ให้ชื่อตารางใน Database เป็น "users"
+}
+
+model Category {
+  id        String         @id
+  name      String         @unique
+  slug      String         @unique
+  image     String?
+  status    CategoryStatus @default(draft)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@map("categories") // ตั้งชื่อ Table ใน PostgreSQL เป็น "categories"
 }
