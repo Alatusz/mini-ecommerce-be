@@ -20,14 +20,43 @@ enum CategoryStatus {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      Role     @default(customer)
+  id       String @id @default(uuid())
+  email    String @unique
+  password String
+  role     Role   @default(customer)
+
+  firstName String?
+  lastName  String?
+  phone     String?
+  bio       String?
+  addresses   Address[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("users") // ให้ชื่อตารางใน Database เป็น "users"
+}
+
+enum AddressTag {
+  home
+  office
+  condo
+}
+
+model Address {
+  id        String     @id
+  title     String
+  tag       AddressTag @default(home)
+  address   String
+  phone     String
+  isDefault Boolean    @default(false)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("addresses")
 }
 
 model Category {
@@ -51,17 +80,17 @@ enum ProductStatus {
 }
 
 model Product {
-  id           String        @id
-  name         String        @unique
-  slug         String        @unique
-  description  String?
+  id            String        @id
+  name          String        @unique
+  slug          String        @unique
+  description   String?
   originalPrice Int?
-  sellPrice    Int?
-  stock        Int           @default(0)
-  images       String[]
-  status       ProductStatus @default(draft)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  sellPrice     Int?
+  stock         Int           @default(0)
+  images        String[]
+  status        ProductStatus @default(draft)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   categoryId String
   categories Category @relation(fields: [categoryId], references: [id])
