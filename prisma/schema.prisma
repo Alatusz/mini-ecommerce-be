@@ -29,10 +29,11 @@ model User {
   lastName  String?
   phone     String?
   bio       String?
-  addresses   Address[]
+  addresses Address[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  cart      Cart?
 
   @@map("users") // ให้ชื่อตารางใน Database เป็น "users"
 }
@@ -93,7 +94,33 @@ model Product {
   updatedAt     DateTime      @updatedAt
 
   categoryId String
-  categories Category @relation(fields: [categoryId], references: [id])
+  categories Category   @relation(fields: [categoryId], references: [id])
+  cartItems  CartItem[]
 
   @@map("products") // ตั้งชื่อ Table ใน PostgreSQL เป็น "products"
+}
+
+model Cart {
+  id        String     @id
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id
+  cart      Cart     @relation(fields: [cartId], references: [id])
+  cartId    String
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId]) // สินค้าชนิดเดียวกันในตะกร้าเดียวกัน ไม่ให้มีแถวซ้ำ
+  @@map("cart_items")
 }
