@@ -47,14 +47,10 @@ export const getAllCategories = async (req, res) => {
   try {
     const { status, search } = req.query;
 
-    const { categories, total } = await getAllCategoriesService({
-      status,
-      search,
-    });
+    const categories = await getAllCategoriesService({ status, search });
 
     return res.status(200).json({
       success: true,
-      total,
       data: categories,
     });
   } catch (error) {
@@ -138,34 +134,3 @@ export const deleteCategory = async (req, res) => {
   }
 };
 
-/**
- * 6. PATCH /api/categories/:id/status - Toggle สถานะหมวดหมู่
- */
-export const patchCategoryStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    if (!status) {
-      return res.status(400).json({
-        success: false,
-        message: "Status is required",
-      });
-    }
-
-    const updated = await patchCategoryStatusService(id, status);
-
-    return res.status(200).json({
-      success: true,
-      message: `Category status updated to ${status}`,
-      data: updated,
-    });
-  } catch (error) {
-    const statusCode = error.message === "Category not found" ? 404 : 400;
-
-    return res.status(statusCode).json({
-      success: false,
-      message: error.message || "Failed to update category status",
-    });
-  }
-};
