@@ -79,12 +79,33 @@ export const getAllCategoriesService = async ({ status, search } = {}) => {
     ];
   }
 
-  const categories = await prisma.category.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
+  const [categories, total] = await Promise.all([
+    prisma.category.findMany({
+      where,
+      include: {
+        _count: {
+          select: { products: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.category.count({ where }),
+  ]);
+
+  const formattedCategories = categories.map((cat) => {
+    const { _count, ...rest } = cat;
+    const count = _count?.products || 0;
+    return {
+      ...rest,
+      productCount: count,
+      itemCount: count,
+    };
   });
 
-  return categories;
+  return {
+    categories: formattedCategories,
+    total,
+  };
 };
 
 /**
@@ -185,13 +206,47 @@ export const deleteCategoryService = async (id) => {
     throw new Error("Category not found");
   }
 
-  // ในอนาคตเมื่อมีตาราง Product เราจะสามารถเพิ่มเงื่อนไขเช็คว่า
-  // ถ้ายังมีสินค้าอยู่ในหมวดหมู่นี้ จะไม่อนุญาตให้ลบได้ตรงนี้
+  const productCount = await prisma.product.count({
+    where: { categoryId: id },
+  });
+
+  if (productCount > 0) {
+    throw new Error(
+      `Cannot delete category. It currently has ${productCount} product(s) assigned to it.`
+    );
+  }
 
   await prisma.category.delete({
     where: { id },
   });
 
   return { message: "Category deleted successfully" };
+};
+
+/**
+ * 6. อัปเดตเฉพาะสถานะของหมวดหมู่ (Patch Category Status)
+ */
+export const patchCategoryStatusService = async (id, status) => {
+  const allowedStatuses = ["active", "archived", "draft"];
+  if (!allowedStatuses.includes(status)) {
+    throw new Error(
+      `Invalid status. Allowed values: ${allowedStatuses.join(", ")}`
+    );
+  }
+
+  const category = await prisma.category.findUnique({
+    where: { id },
+  });
+
+  if (!category) {
+    throw new Error("Category not found");
+  }
+
+  const updatedCategory = await prisma.category.update({
+    where: { id },
+    data: { status },
+  });
+
+  return updatedCategory;
 };
 
