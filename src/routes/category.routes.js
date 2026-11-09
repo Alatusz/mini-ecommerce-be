@@ -5,6 +5,7 @@ import {
   getCategoryById,
   updateCategory,
   deleteCategory,
+  patchCategoryStatus,
 } from "../controllers/category.controller.js";
 import { authenticate, authorize } from "../services/auth.service.js";
 
@@ -22,6 +23,6 @@ router.get("/:id", getCategoryById);
 router.post("/", authenticate, authorize("admin", "staff"), createCategory);
 router.put("/:id", authenticate, authorize("admin", "staff"), updateCategory);
 router.delete("/:id", authenticate, authorize("admin"), deleteCategory);
+router.patch("/:id/status", patchCategoryStatus);
 
 export default router;
-

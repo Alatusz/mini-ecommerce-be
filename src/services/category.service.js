@@ -79,12 +79,33 @@ export const getAllCategoriesService = async ({ status, search } = {}) => {
     ];
   }
 
-  const categories = await prisma.category.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
+  const [categories, total] = await Promise.all([
+    prisma.category.findMany({
+      where,
+      include: {
+        _count: {
+          select: { products: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.category.count({ where }), // นับจำนวนหมวดหมู่ตามเงื่อนไข
+  ]);
+
+  const formattedCategories = categories.map((cat) => {
+    const { _count, ...rest } = cat;
+    const count = _count?.products || 0;
+    return {
+      ...rest,
+      productCount: count,
+      itemCount: count, // รองรับ frontend table column เดิม
+    };
   });
 
-  return categories;
+  return {
+    categories: formattedCategories,
+    total,
+  };
 };
 
 /**
@@ -125,7 +146,7 @@ export const updateCategoryService = async (
   if (name !== undefined) {
     const cleanName = name.trim();
 
-    const duplicateName = await prisma.product.findFirst({
+    const duplicateName = await prisma.category.findFirst({
       where: {
         name: cleanName,
         NOT: { id },
@@ -133,17 +154,37 @@ export const updateCategoryService = async (
     });
 
     if (duplicateName) {
-      throw new Error("Product name already exists");
+      throw new Error("Category name already exists");
     }
     updateData.name = cleanName;
     // ถ้าไม่ได้ส่ง slug มา ให้ auto-generate จากชื่อใหม่
-    if (!slug) {
-      updateData.slug = slugify(cleanName);
+    if (!slug?.trim() && cleanName !== category.name) {
+      const generatedSlug = slugify(cleanName);
+      if (!generatedSlug) {
+        throw new Error("Invalid category name");
+      }
+
+      const duplicateSlug = await prisma.category.findFirst({
+        where: {
+          slug: generatedSlug,
+          NOT: { id },
+        },
+      });
+
+      if (duplicateSlug) {
+        throw new Error("Category slug already exists");
+      }
+
+      updateData.slug = generatedSlug;
     }
   }
 
   if (slug !== undefined && slug.trim()) {
     const cleanSlug = slugify(slug);
+    if (!cleanSlug) {
+      throw new Error("Invalid category slug");
+    }
+
     const duplicateSlug = await prisma.category.findFirst({
       where: {
         slug: cleanSlug,
@@ -158,8 +199,8 @@ export const updateCategoryService = async (
     updateData.slug = cleanSlug;
   }
 
-  if (images !== undefined) {
-    updateData.images = images || null;
+  if (image !== undefined) {
+    updateData.image = image || null;
   }
 
   if (status !== undefined) {
@@ -186,12 +227,47 @@ export const deleteCategoryService = async (id) => {
     throw new Error("Category not found");
   }
 
-  // ในอนาคตเมื่อมีตาราง Product เราจะสามารถเพิ่มเงื่อนไขเช็คว่า
-  // ถ้ายังมีสินค้าอยู่ในหมวดหมู่นี้ จะไม่อนุญาตให้ลบได้ตรงนี้
+  const productCount = await prisma.product.count({
+    where: { categoryId: id },
+  });
+
+  if (productCount > 0) {
+    throw new Error(
+      `Cannot delete category. It currently has ${productCount} product(s) assigned to it.`,
+    );
+  }
 
   await prisma.category.delete({
     where: { id },
   });
 
   return { message: "Category deleted successfully" };
+};
+
+/**
+ * 6. Toggle Status (Patch)
+ */
+
+export const patchStatusCategory = async (id, status) => {
+  const allowedStatuses = ["active", "archived", "draft"];
+  if (!allowedStatuses.includes(status)) {
+    throw new Error(
+      `Invalid status. Allowed values: ${allowedStatuses.join(", ")}`,
+    );
+  }
+
+  const category = await prisma.category.findUnique({
+    where: { id },
+  });
+
+  if (!category) {
+    throw new Error("Category not found");
+  }
+
+  const updatedCategory = await prisma.category.update({
+    where: { id },
+    data: { status },
+  });
+
+  return updatedCategory;
 };
