@@ -33,7 +33,10 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  cart      Cart?
+
+  cart Cart?
+
+  orders Order[]
 
   @@map("users") // ให้ชื่อตารางใน Database เป็น "users"
 }
@@ -94,19 +97,23 @@ model Product {
   updatedAt     DateTime      @updatedAt
 
   categoryId String
-  categories Category   @relation(fields: [categoryId], references: [id])
-  cartItems  CartItem[]
+  categories Category @relation(fields: [categoryId], references: [id])
+
+  cartItems CartItem[]
+
+  orderItems OrderItem[]
 
   @@map("products") // ตั้งชื่อ Table ใน PostgreSQL เป็น "products"
 }
 
 model Cart {
-  id        String     @id
-  userId    String     @unique
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items     CartItem[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id         String      @id
+  userId     String      @unique
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items      CartItem[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  orderItems OrderItem[]
 
   @@map("carts")
 }
@@ -123,4 +130,64 @@ model CartItem {
 
   @@unique([cartId, productId]) // สินค้าชนิดเดียวกันในตะกร้าเดียวกัน ไม่ให้มีแถวซ้ำ
   @@map("cart_items")
+}
+
+enum OrderStatus {
+  pending // รอดำเนินการ / รอชำระเงิน
+  paid // ชำระเงินแล้ว
+  shipped // กำลังจัดส่ง
+  delivered // จัดส่งสำเร็จ
+  cancelled // ยกเลิกแล้ว
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refund
+}
+
+enum PaymentMethod {
+  cod // เก็บเงินปลายทาง (Cash on Delivery)
+  credit_card // บัตรเครดิต
+  promptpay // พร้อมเพย์ / โอนเงิน
+}
+
+model Order {
+  id     String      @id
+  userId String
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items  OrderItem[]
+
+  totalAmount Int
+  status      OrderStatus @default(pending)
+
+  paymentMethod PaymentMethod @default(cod)
+  paymentStatus PaymentStatus @default(pending)
+
+  shippingAddress String
+  shippingPhone   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  price    Int
+  quantity Int @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cart      Cart?    @relation(fields: [cartId], references: [id])
+  cartId    String?
+
+  @@map("order_items")
 }
