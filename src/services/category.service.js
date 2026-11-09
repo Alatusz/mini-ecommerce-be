@@ -116,13 +116,25 @@ export const getCategoryByIdService = async (idOrSlug) => {
     where: {
       OR: [{ id: idOrSlug }, { slug: idOrSlug }],
     },
+    include: {
+      _count: {
+        select: { products: true },
+      },
+    },
   });
 
   if (!category) {
     throw new Error("Category not found");
   }
 
-  return category;
+  const { _count, ...rest } = category;
+  const count = _count?.products || 0;
+
+  return {
+    ...rest,
+    productCount: count,
+    itemCount: count,
+  };
 };
 
 /**
@@ -141,12 +153,26 @@ export const updateCategoryService = async (
     throw new Error("Category not found");
   }
 
+  // หากมีการพยายามปรับสถานะเป็น draft หรือ archived
+  // ตรวจสอบว่ามีสินค้าผูกอยู่หรือไม่ ถ้ามีห้ามเปลี่ยนสถานะ
+  if (status !== undefined && status !== "active") {
+    const productCount = await prisma.product.count({
+      where: { categoryId: id },
+    });
+
+    if (productCount > 0) {
+      throw new Error(
+        `Cannot change category status to ${status}. It is currently linked to ${productCount} product(s).`
+      );
+    }
+  }
+
   const updateData = {};
 
   if (name !== undefined) {
     const cleanName = name.trim();
 
-    const duplicateName = await prisma.product.findFirst({
+    const duplicateName = await prisma.category.findFirst({
       where: {
         name: cleanName,
         NOT: { id },
@@ -154,7 +180,7 @@ export const updateCategoryService = async (
     });
 
     if (duplicateName) {
-      throw new Error("Product name already exists");
+      throw new Error("Category name already exists");
     }
     updateData.name = cleanName;
     // ถ้าไม่ได้ส่ง slug มา ให้ auto-generate จากชื่อใหม่
@@ -179,8 +205,8 @@ export const updateCategoryService = async (
     updateData.slug = cleanSlug;
   }
 
-  if (images !== undefined) {
-    updateData.images = images || null;
+  if (image !== undefined) {
+    updateData.image = image || null;
   }
 
   if (status !== undefined) {
@@ -241,6 +267,20 @@ export const patchCategoryStatusService = async (id, status) => {
 
   if (!category) {
     throw new Error("Category not found");
+  }
+
+  // หากมีการพยายามปรับสถานะเป็น draft หรือ archived
+  // ตรวจสอบว่ามีสินค้าผูกอยู่หรือไม่ ถ้ามีห้ามเปลี่ยนสถานะ
+  if (status !== "active") {
+    const productCount = await prisma.product.count({
+      where: { categoryId: id },
+    });
+
+    if (productCount > 0) {
+      throw new Error(
+        `Cannot change category status to ${status}. It is currently linked to ${productCount} product(s).`
+      );
+    }
   }
 
   const updatedCategory = await prisma.category.update({
