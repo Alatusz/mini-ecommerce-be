@@ -42,21 +42,27 @@ export const createCategory = async (req, res) => {
 };
 
 /**
- * 2. GET /api/categories - ดึงหมวดหมู่ทั้งหมด
+ * 2. GET /api/categories - ดึงหมวดหมู่ทั้งหมด (รองรับ Filter, Search, Pagination)
  */
 export const getAllCategories = async (req, res) => {
   try {
-    const { status, search } = req.query;
+    // รับ query parameters จาก URL
+    const { status, search, page, limit } = req.query;
 
-    const { categories, total } = await getAllCategoriesService({
+    const result = await getAllCategoriesService({
       status,
       search,
+      page,
+      limit,
     });
 
     return res.status(200).json({
       success: true,
-      total,
-      data: categories,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+      data: result.categories,
     });
   } catch (error) {
     return res.status(500).json({
@@ -169,4 +175,3 @@ export const patchCategoryStatus = async (req, res) => {
     });
   }
 };
-
