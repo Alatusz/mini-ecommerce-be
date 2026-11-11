@@ -137,15 +137,23 @@ export const getAllProducts = async (req, res) => {
       stockStatus,
     } = req.query;
 
+    const resolvedCategory =
+      category ||
+      categoryId ||
+      req.query["category[]"] ||
+      req.query["categoryId[]"];
+    const resolvedStatus = status || req.query["status[]"];
+    const resolvedStockStatus = stockStatus || req.query["stockStatus[]"];
+
     const result = await getAllProductsService({
       name,
       search,
       searchBy,
       page,
       limit,
-      category: category || categoryId,
-      status,
-      stockStatus,
+      category: resolvedCategory,
+      status: resolvedStatus,
+      stockStatus: resolvedStockStatus,
     });
 
     return res.status(200).json({
