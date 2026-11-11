@@ -160,7 +160,7 @@ export const getAllProductsService = async ({
   }
 
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
-  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+  const limitNum = parseInt(limit, 10) > 0 ? parseInt(limit, 10) : 10;
   const skip = (pageNum - 1) * limitNum;
 
   // ดึงข้อมูลสินค้า พร้อมคำนวณสถิติ KPI ทั้งหมดตรงจาก Database ด้วย Promise.all

@@ -49,9 +49,10 @@ export const getAllCategories = async (req, res) => {
   try {
     // รับ query parameters จาก URL
     const { status, search, page, limit } = req.query;
+    const resolvedStatus = status || req.query["status[]"];
 
     const result = await getAllCategoriesService({
-      status,
+      status: resolvedStatus,
       search,
       page,
       limit,
@@ -182,7 +183,8 @@ export const patchCategoryStatus = async (req, res) => {
  */
 export const getCategoryOptions = async (req, res) => {
   try {
-    const categories = await getCategoryOptionsService();
+    const { limit } = req.query;
+    const categories = await getCategoryOptionsService({ limit });
 
     return res.status(200).json({
       success: true,

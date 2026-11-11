@@ -101,7 +101,7 @@ export const getAllCategoriesService = async ({
 
   // ── 2. คำนวณการแบ่งหน้า (Pagination Math) ──
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
-  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10)); // ลิมิตสูงสุดไม่เกิน 100 แถว
+  const limitNum = parseInt(limit, 10) > 0 ? parseInt(limit, 10) : 10;
   const skip = (pageNum - 1) * limitNum;
 
   // ── 3. Query ข้อมูลและนับจำนวนทั้งหมดพร้อมกัน ──
@@ -332,11 +332,13 @@ export const patchCategoryStatusService = async (id, status) => {
  * 7. ดึงตัวเลือกหมวดหมู่สำหรับใส่ Dropdown / Select ({feature}Options)
  * ดึงเฉพาะหมวดหมู่ที่ active, ส่งเฉพาะ id, name และเรียงตามชื่อ ก-ฮ / A-Z
  */
-export const getCategoryOptionsService = async () => {
+export const getCategoryOptionsService = async ({ limit } = {}) => {
+  const limitNum = parseInt(limit, 10) > 0 ? parseInt(limit, 10) : undefined;
   const categories = await prisma.category.findMany({
     where: {
       status: "active",
     },
+    take: limitNum,
     select: {
       id: true,
       name: true,
