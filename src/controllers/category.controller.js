@@ -5,6 +5,7 @@ import {
   updateCategoryService,
   deleteCategoryService,
   patchCategoryStatusService,
+  getCategoryOptionsService,
 } from "../services/category.service.js";
 
 /**
@@ -172,6 +173,25 @@ export const patchCategoryStatus = async (req, res) => {
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to update category status",
+    });
+  }
+};
+
+/**
+ * 7. GET /api/categories/options - ดึงเฉพาะ id, name สำหรับใส่ Dropdown ({feature}Options)
+ */
+export const getCategoryOptions = async (req, res) => {
+  try {
+    const categories = await getCategoryOptionsService();
+
+    return res.status(200).json({
+      success: true,
+      data: categories,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch category options",
     });
   }
 };
