@@ -327,3 +327,24 @@ export const patchCategoryStatusService = async (id, status) => {
 
   return updatedCategory;
 };
+
+/**
+ * 7. ดึงตัวเลือกหมวดหมู่สำหรับใส่ Dropdown / Select ({feature}Options)
+ * ดึงเฉพาะหมวดหมู่ที่ active, ส่งเฉพาะ id, name และเรียงตามชื่อ ก-ฮ / A-Z
+ */
+export const getCategoryOptionsService = async () => {
+  const categories = await prisma.category.findMany({
+    where: {
+      status: "active",
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+
+  return categories;
+};

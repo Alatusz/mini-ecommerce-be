@@ -17,8 +17,11 @@ export const createProduct = async (req, res) => {
       stock,
       images,
       status,
+      category,
       categoryId,
     } = req.body;
+
+    const finalCategoryId = categoryId || category;
 
     if (!name || !name.trim()) {
       return res
@@ -30,7 +33,7 @@ export const createProduct = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Sell price is required" });
     }
-    if (!categoryId) {
+    if (!finalCategoryId) {
       return res
         .status(400)
         .json({ success: false, message: "Category ID is required" });
@@ -45,7 +48,7 @@ export const createProduct = async (req, res) => {
       stock: stock !== undefined ? Number(stock) : 0,
       images,
       status,
-      categoryId,
+      categoryId: finalCategoryId,
     });
 
     return res.status(201).json({
@@ -121,16 +124,37 @@ export const deleteProduct = async (req, res) => {
 };
 export const getAllProducts = async (req, res) => {
   try {
-    const { name, search } = req.query;
-
-    const products = await getAllProductsService({
+    const {
       name,
       search,
+      searchBy,
+      page,
+      limit,
+      categoryId,
+      category,
+      status,
+      stockStatus,
+    } = req.query;
+
+    const result = await getAllProductsService({
+      name,
+      search,
+      searchBy,
+      page,
+      limit,
+      category: category || categoryId,
+      status,
+      stockStatus,
     });
 
     return res.status(200).json({
       success: true,
-      data: products,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+      stats: result.stats,
+      data: result.products,
     });
   } catch (error) {
     return res.status(500).json({

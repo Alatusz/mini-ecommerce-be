@@ -6,6 +6,7 @@ import {
   updateCategory,
   deleteCategory,
   patchCategoryStatus,
+  getCategoryOptions,
 } from "../controllers/category.controller.js";
 import { authenticate, authorize } from "../services/auth.service.js";
 
@@ -14,6 +15,7 @@ const router = express.Router();
 /**
  * Public Routes (ใครก็เข้าถึงได้ ไม่ต้อง Login)
  */
+router.get("/options", getCategoryOptions); // 👈 ต้องอยู่ก่อน /:id เพื่อไม่ให้ Express มองว่า "options" คือ ID
 router.get("/", getAllCategories);
 router.get("/:id", getCategoryById);
 
