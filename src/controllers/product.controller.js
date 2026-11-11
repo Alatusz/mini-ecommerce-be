@@ -76,6 +76,7 @@ export const updateProduct = async (req, res) => {
       images,
       status,
       categoryId,
+      category,
     } = req.body;
 
     const updated = await updateProductService(id, {
@@ -87,7 +88,7 @@ export const updateProduct = async (req, res) => {
       stock,
       images,
       status,
-      categoryId,
+      categoryId: categoryId || category,
     });
 
     return res.status(200).json({
