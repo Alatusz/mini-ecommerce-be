@@ -92,6 +92,7 @@ const USER_SELECT = {
   id: true,
   email: true,
   role: true,
+  status: true,
   firstName: true,
   lastName: true,
   phone: true,
@@ -109,6 +110,7 @@ export const getAllUsersService = async ({
   search = "",
   searchBy = "",
   role = "",
+  status = "",
 } = {}) => {
   const skip = (page - 1) * limit;
   const where = {};
@@ -120,6 +122,16 @@ export const getAllUsersService = async ({
       .filter((r) => ["admin", "staff", "customer"].includes(r));
     if (roles.length > 0) {
       where.role = { in: roles };
+    }
+  }
+
+  if (status) {
+    const statuses = status
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => ["active", "inactive", "suspended"].includes(s));
+    if (statuses.length > 0) {
+      where.status = { in: statuses };
     }
   }
 
@@ -250,4 +262,22 @@ export const deleteUserService = async (id) => {
 
   await prisma.user.delete({ where: { id } });
   return { id };
+};
+
+export const patchUserStatusService = async (id, status) => {
+  const validStatuses = ["active", "inactive", "suspended"];
+  if (!validStatuses.includes(status)) {
+    throw new Error("Invalid status");
+  }
+
+  const existing = await prisma.user.findUnique({ where: { id } });
+  if (!existing) {
+    throw new Error("User not found");
+  }
+
+  return prisma.user.update({
+    where: { id },
+    data: { status },
+    select: USER_SELECT,
+  });
 };

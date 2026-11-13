@@ -13,6 +13,12 @@ enum Role {
   admin
 }
 
+enum UserStatus {
+  active
+  inactive
+  suspended
+}
+
 enum CategoryStatus {
   active
   archived
@@ -21,9 +27,10 @@ enum CategoryStatus {
 
 model User {
   id       String @id @default(uuid())
-  email    String @unique
+  email    String     @unique
   password String
-  role     Role   @default(customer)
+  role     Role       @default(customer)
+  status   UserStatus @default(active)
 
   firstName String?
   lastName  String?

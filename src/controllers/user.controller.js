@@ -7,6 +7,7 @@ import {
   createUserService,
   updateUserService,
   deleteUserService,
+  patchUserStatusService,
 } from "../services/user.services.js";
 
 const ERROR_MESSAGE = "User not found";
@@ -85,6 +86,7 @@ export const getAllUsers = async (req, res) => {
     const search = req.query.search || "";
     const searchBy = req.query.searchBy || "";
     const role = req.query.role || "";
+    const status = req.query.status || "";
 
     const result = await getAllUsersService({
       page,
@@ -92,6 +94,7 @@ export const getAllUsers = async (req, res) => {
       search,
       searchBy,
       role,
+      status,
     });
 
     return res.status(200).json({
@@ -167,6 +170,23 @@ export const deleteUser = async (req, res) => {
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to delete user",
+    });
+  }
+};
+
+export const patchUserStatus = async (req, res) => {
+  try {
+    const user = await patchUserStatusService(req.params.id, req.body.status);
+    return res.status(200).json({
+      success: true,
+      message: "User status updated successfully",
+      data: user,
+    });
+  } catch (error) {
+    const statusCode = error.message === ERROR_MESSAGE ? 404 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to update user status",
     });
   }
 };

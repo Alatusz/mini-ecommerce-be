@@ -8,6 +8,7 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  patchUserStatus,
 } from "../controllers/user.controller.js";
 import { authenticate } from "../services/auth.service.js";
 
@@ -23,6 +24,7 @@ router.get("/", getAllUsers)
 router.get("/:id", getUserById)
 router.post("/", createUser)
 router.put("/:id", updateUser)
+router.patch("/:id/status", patchUserStatus)
 router.delete("/:id", deleteUser)
 
 export default router;
