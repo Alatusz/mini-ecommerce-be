@@ -92,11 +92,7 @@ export const getAllCategoriesService = async ({
   }
 
   if (search && search.trim()) {
-    const q = search.trim();
-    where.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { slug: { contains: q, mode: "insensitive" } },
-    ];
+    where.name = { contains: search.trim(), mode: "insensitive" };
   }
 
   // ── 2. คำนวณการแบ่งหน้า (Pagination Math) ──
