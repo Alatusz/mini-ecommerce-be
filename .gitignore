@@ -1,2 +1,4 @@
 node_modules
+MIGRATION_GUIDE.md
+uploads
 .env

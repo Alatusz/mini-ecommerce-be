@@ -4,6 +4,8 @@ import {
   getCategoryByIdService,
   updateCategoryService,
   deleteCategoryService,
+  patchCategoryStatusService,
+  getCategoryOptionsService,
 } from "../services/category.service.js";
 
 /**
@@ -41,21 +43,28 @@ export const createCategory = async (req, res) => {
 };
 
 /**
- * 2. GET /api/categories - ดึงหมวดหมู่ทั้งหมด
+ * 2. GET /api/categories - ดึงหมวดหมู่ทั้งหมด (รองรับ Filter, Search, Pagination)
  */
 export const getAllCategories = async (req, res) => {
   try {
-    const { status, search } = req.query;
+    // รับ query parameters จาก URL
+    const { status, search, page, limit } = req.query;
+    const resolvedStatus = status || req.query["status[]"];
 
-    const { categories, total } = await getAllCategoriesService({
-      status,
+    const result = await getAllCategoriesService({
+      status: resolvedStatus,
       search,
+      page,
+      limit,
     });
 
     return res.status(200).json({
       success: true,
-      total,
-      data: categories,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+      data: result.categories,
     });
   } catch (error) {
     return res.status(500).json({
@@ -139,7 +148,7 @@ export const deleteCategory = async (req, res) => {
 };
 
 /**
- * 6. PATCH /api/categories/:id/status - Toggle สถานะหมวดหมู่
+ * 6. PATCH /api/categories/:id/status - Toggle หรือแก้ไขสถานะของหมวดหมู่
  */
 export const patchCategoryStatus = async (req, res) => {
   try {
@@ -162,10 +171,29 @@ export const patchCategoryStatus = async (req, res) => {
     });
   } catch (error) {
     const statusCode = error.message === "Category not found" ? 404 : 400;
-
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to update category status",
+    });
+  }
+};
+
+/**
+ * 7. GET /api/categories/options - ดึงเฉพาะ id, name สำหรับใส่ Dropdown ({feature}Options)
+ */
+export const getCategoryOptions = async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const categories = await getCategoryOptionsService({ limit });
+
+    return res.status(200).json({
+      success: true,
+      data: categories,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch category options",
     });
   }
 };

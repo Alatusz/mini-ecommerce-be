@@ -61,14 +61,34 @@ export const createCategoryService = async ({ name, slug, image, status }) => {
 };
 
 /**
- * 2. ดึงรายการหมวดหมู่ทั้งหมด (Get All Categories)
- * รองรับ filter ตาม status และ ค้นหาชื่อ/slug ได้
+ * 2. ดึงรายการหมวดหมู่ (Get Categories with Pagination & Search)
+ * รองรับ filter ตาม status, ค้นหาชื่อ/slug, และแบ่งหน้า (Server-side)
  */
-export const getAllCategoriesService = async ({ status, search } = {}) => {
+export const getAllCategoriesService = async ({
+  search,
+  page = 1,
+  limit = 10,
+  status,
+} = {}) => {
+  // ── 1. กำหนดเงื่อนไขการค้นหา (Where Clause) ──
   const where = {};
 
+  // รองรับ status แบบ Array หรือ Comma-separated (เช่น active,draft)
   if (status) {
-    where.status = status;
+    const statusList = Array.isArray(status)
+      ? status
+      : typeof status === "string"
+        ? status
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
+        : [];
+
+    if (statusList.length === 1) {
+      where.status = statusList[0];
+    } else if (statusList.length > 1) {
+      where.status = { in: statusList };
+    }
   }
 
   if (search && search.trim()) {
@@ -79,9 +99,17 @@ export const getAllCategoriesService = async ({ status, search } = {}) => {
     ];
   }
 
+  // ── 2. คำนวณการแบ่งหน้า (Pagination Math) ──
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = parseInt(limit, 10) > 0 ? parseInt(limit, 10) : 10;
+  const skip = (pageNum - 1) * limitNum;
+
+  // ── 3. Query ข้อมูลและนับจำนวนทั้งหมดพร้อมกัน ──
   const [categories, total] = await Promise.all([
     prisma.category.findMany({
       where,
+      skip,
+      take: limitNum,
       include: {
         _count: {
           select: { products: true },
@@ -89,22 +117,29 @@ export const getAllCategoriesService = async ({ status, search } = {}) => {
       },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.category.count({ where }), // นับจำนวนหมวดหมู่ตามเงื่อนไข
+    prisma.category.count({ where }),
   ]);
 
-  const formattedCategories = categories.map((cat) => {
-    const { _count, ...rest } = cat;
-    const count = _count?.products || 0;
-    return {
-      ...rest,
-      productCount: count,
-      itemCount: count, // รองรับ frontend table column เดิม
-    };
-  });
+  const totalPages = Math.ceil(total / limitNum);
+
+  // ── 4. จัดรูปแบบข้อมูลให้กระชับและเรียงลำดับชัดเจน ──
+  const formattedCategories = categories.map((cat) => ({
+    id: cat.id,
+    name: cat.name,
+    slug: cat.slug,
+    image: cat.image,
+    status: cat.status,
+    productCount: cat._count?.products || 0,
+    createdAt: cat.createdAt,
+    updatedAt: cat.updatedAt,
+  }));
 
   return {
     categories: formattedCategories,
     total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages,
   };
 };
 
@@ -116,13 +151,27 @@ export const getCategoryByIdService = async (idOrSlug) => {
     where: {
       OR: [{ id: idOrSlug }, { slug: idOrSlug }],
     },
+    include: {
+      _count: {
+        select: { products: true },
+      },
+    },
   });
 
   if (!category) {
     throw new Error("Category not found");
   }
 
-  return category;
+  return {
+    id: category.id,
+    name: category.name,
+    slug: category.slug,
+    image: category.image,
+    status: category.status,
+    productCount: category._count?.products || 0,
+    createdAt: category.createdAt,
+    updatedAt: category.updatedAt,
+  };
 };
 
 /**
@@ -139,6 +188,20 @@ export const updateCategoryService = async (
 
   if (!category) {
     throw new Error("Category not found");
+  }
+
+  // หากมีการพยายามปรับสถานะเป็น draft หรือ archived
+  // ตรวจสอบว่ามีสินค้าผูกอยู่หรือไม่ ถ้ามีห้ามเปลี่ยนสถานะ
+  if (status !== undefined && status !== "active") {
+    const productCount = await prisma.product.count({
+      where: { categoryId: id },
+    });
+
+    if (productCount > 0) {
+      throw new Error(
+        `Cannot change category status to ${status}. It is currently linked to ${productCount} product(s).`,
+      );
+    }
   }
 
   const updateData = {};
@@ -245,10 +308,9 @@ export const deleteCategoryService = async (id) => {
 };
 
 /**
- * 6. Toggle Status (Patch)
+ * 6. อัปเดตเฉพาะสถานะของหมวดหมู่ (Patch Category Status)
  */
-
-export const patchStatusCategory = async (id, status) => {
+export const patchCategoryStatusService = async (id, status) => {
   const allowedStatuses = ["active", "archived", "draft"];
   if (!allowedStatuses.includes(status)) {
     throw new Error(
@@ -264,10 +326,47 @@ export const patchStatusCategory = async (id, status) => {
     throw new Error("Category not found");
   }
 
+  // หากมีการพยายามปรับสถานะเป็น draft หรือ archived
+  // ตรวจสอบว่ามีสินค้าผูกอยู่หรือไม่ ถ้ามีห้ามเปลี่ยนสถานะ
+  if (status !== "active") {
+    const productCount = await prisma.product.count({
+      where: { categoryId: id },
+    });
+
+    if (productCount > 0) {
+      throw new Error(
+        `Cannot change category status to ${status}. It is currently linked to ${productCount} product(s).`,
+      );
+    }
+  }
+
   const updatedCategory = await prisma.category.update({
     where: { id },
     data: { status },
   });
 
   return updatedCategory;
+};
+
+/**
+ * 7. ดึงตัวเลือกหมวดหมู่สำหรับใส่ Dropdown / Select ({feature}Options)
+ * ดึงเฉพาะหมวดหมู่ที่ active, ส่งเฉพาะ id, name และเรียงตามชื่อ ก-ฮ / A-Z
+ */
+export const getCategoryOptionsService = async ({ limit } = {}) => {
+  const limitNum = parseInt(limit, 10) > 0 ? parseInt(limit, 10) : undefined;
+  const categories = await prisma.category.findMany({
+    where: {
+      status: "active",
+    },
+    take: limitNum,
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+
+  return categories;
 };
