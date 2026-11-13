@@ -2,6 +2,11 @@ import {
   getProfileService,
   updateProfileService,
   changePasswordService,
+  getAllUsersService,
+  getUserByIdService,
+  createUserService,
+  updateUserService,
+  deleteUserService,
 } from "../services/user.services.js";
 
 const ERROR_MESSAGE = "User not found";
@@ -69,6 +74,99 @@ export const changePassword = async (req, res) => {
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to update password",
+    });
+  }
+};
+
+export const getAllUsers = async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.max(1, Number(req.query.limit) || 10);
+    const search = req.query.search || "";
+    const searchBy = req.query.searchBy || "";
+    const role = req.query.role || "";
+
+    const result = await getAllUsersService({
+      page,
+      limit,
+      search,
+      searchBy,
+      role,
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to fetch users",
+    });
+  }
+};
+
+export const getUserById = async (req, res) => {
+  try {
+    const user = await getUserByIdService(req.params.id);
+    return res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    const statusCode = error.message === ERROR_MESSAGE ? 404 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to fetch user",
+    });
+  }
+};
+
+export const createUser = async (req, res) => {
+  try {
+    const user = await createUserService(req.body);
+    return res.status(201).json({
+      success: true,
+      message: "User created successfully",
+      data: user,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to create user",
+    });
+  }
+};
+
+export const updateUser = async (req, res) => {
+  try {
+    const user = await updateUserService(req.params.id, req.body);
+    return res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      data: user,
+    });
+  } catch (error) {
+    const statusCode = error.message === ERROR_MESSAGE ? 404 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to update user",
+    });
+  }
+};
+
+export const deleteUser = async (req, res) => {
+  try {
+    await deleteUserService(req.params.id);
+    return res.status(200).json({
+      success: true,
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    const statusCode = error.message === ERROR_MESSAGE ? 404 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to delete user",
     });
   }
 };
