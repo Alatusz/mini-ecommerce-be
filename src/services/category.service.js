@@ -221,13 +221,33 @@ export const updateCategoryService = async (
     }
     updateData.name = cleanName;
     // ถ้าไม่ได้ส่ง slug มา ให้ auto-generate จากชื่อใหม่
-    if (!slug) {
-      updateData.slug = slugify(cleanName);
+    if (!slug?.trim() && cleanName !== category.name) {
+      const generatedSlug = slugify(cleanName);
+      if (!generatedSlug) {
+        throw new Error("Invalid category name");
+      }
+
+      const duplicateSlug = await prisma.category.findFirst({
+        where: {
+          slug: generatedSlug,
+          NOT: { id },
+        },
+      });
+
+      if (duplicateSlug) {
+        throw new Error("Category slug already exists");
+      }
+
+      updateData.slug = generatedSlug;
     }
   }
 
   if (slug !== undefined && slug.trim()) {
     const cleanSlug = slugify(slug);
+    if (!cleanSlug) {
+      throw new Error("Invalid category slug");
+    }
+
     const duplicateSlug = await prisma.category.findFirst({
       where: {
         slug: cleanSlug,
