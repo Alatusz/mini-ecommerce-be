@@ -1,28 +1,20 @@
 import prisma from "../config/prisma.js";
-import { buildUtcDateRange } from "../utils/dateRange.js";
+import { buildDashboardRange } from "../utils/dateRange.js";
 import { DateTime } from "luxon";
-
-const DATE_FORMAT_BY_GROUP = {
-  hour: "yyyy-MM-dd HH:00",
-  day: "yyyy-MM-dd",
-  month: "yyyy-MM",
-  year: "yyyy",
-};
 
 export const getDashboardOverviewService = async ({
   startDate,
   endDate,
   tz,
-  groupBy = "day",
+  groupBy,
 }) => {
-  const { start, end, zone } = buildUtcDateRange(startDate, endDate, tz);
+  const { start, end, startDt, endDt, zone, unit, dateFormat } =
+    buildDashboardRange({ startDate, endDate, tz, groupBy });
 
   const createdAtRange = {
     gte: start,
     lte: end,
   };
-
-  const dateFormat = DATE_FORMAT_BY_GROUP[groupBy] || DATE_FORMAT_BY_GROUP.day;
 
   const [
     orderSummaryAgg,
@@ -88,20 +80,37 @@ export const getDashboardOverviewService = async ({
   // Sale Trend Graph
   const salesTrendByPeriod = {};
 
+  let cursor = startDt;
+
+  while (cursor <= endDt) {
+    const periodKey = cursor.toFormat(dateFormat);
+
+    const isoDate =
+      unit === "hour"
+        ? cursor.toFormat("yyyy-MM-dd'T'HH:00:00")
+        : unit === "week"
+          ? cursor.startOf("week").toISODate()
+          : unit === "month"
+            ? cursor.startOf("month").toISODate()
+            : unit === "year"
+              ? cursor.startOf("year").toISODate()
+              : cursor.toISODate();
+
+    salesTrendByPeriod[periodKey] = {
+      date: isoDate,
+      total: 0,
+    };
+    cursor = cursor.plus({ [unit]: 1 });
+  }
+
   ordersInRange.forEach((order) => {
     const periodKey = DateTime.fromJSDate(order.createdAt)
       .setZone(zone)
       .toFormat(dateFormat);
 
-    if (!salesTrendByPeriod[periodKey]) {
-      salesTrendByPeriod[periodKey] = {
-        id: periodKey, // ใช้เป็น key ของกราฟ / React key
-        label: periodKey, // แกน X (เช่น "2026-11-17")
-        total: 0, // แกน Y (ยอดขายรวม)
-      };
+    if (salesTrendByPeriod[periodKey]) {
+      salesTrendByPeriod[periodKey].total += Number(order.totalAmount ?? 0);
     }
-
-    salesTrendByPeriod[periodKey].total += Number(order.totalAmount ?? 0);
   });
 
   const salesTrend = Object.values(salesTrendByPeriod);
