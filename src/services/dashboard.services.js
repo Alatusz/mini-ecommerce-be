@@ -1,15 +1,18 @@
 import prisma from "../config/prisma.js";
 import { buildDashboardRange } from "../utils/dateRange.js";
-import { DateTime } from "luxon";
 
 export const getDashboardOverviewService = async ({
   startDate,
   endDate,
   tz,
-  groupBy,
 }) => {
-  const { start, end, startDt, endDt, zone, unit, dateFormat } =
-    buildDashboardRange({ startDate, endDate, tz, groupBy });
+  const { start, end, startDt, endDt, zone } = buildDashboardRange({
+    startDate,
+    endDate,
+    tz,
+  });
+
+  const dateFormat = "yyyy-MM-dd";
 
   const createdAtRange = {
     gte: start,
@@ -19,9 +22,10 @@ export const getDashboardOverviewService = async ({
   const [
     orderSummaryAgg,
     newCustomerCount,
-    ordersInRange,
-    orderItemsInRange,
     recentOrders,
+    trendRows,
+    trendCategory,
+    topProducts,
   ] = await Promise.all([
     prisma.order.aggregate({
       where: { createdAt: createdAtRange, status: { not: "cancelled" } },
@@ -32,136 +36,87 @@ export const getDashboardOverviewService = async ({
       where: { role: "customer", createdAt: createdAtRange },
     }),
     prisma.order.findMany({
-      where: { createdAt: createdAtRange, status: { not: "cancelled" } },
-      select: { createdAt: true, totalAmount: true },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.orderItem.findMany({
-      where: {
-        order: {
-          createdAt: createdAtRange,
-          status: { not: "cancelled" },
-        },
-      },
+      take: 5,
+      where: { createdAt: createdAtRange },
+      orderBy: { createdAt: "desc" },
       select: {
-        price: true,
-        quantity: true,
-        product: {
-          select: {
-            id: true,
-            name: true,
-            images: true,
-            categories: {
-              select: { id: true, name: true },
-            },
-          },
-        },
+        id: true,
+        totalAmount: true,
+        status: true,
+        createdAt: true,
+        user: { select: { firstName: true, lastName: true, email: true } },
       },
     }),
-    prisma.order.findMany({
-      take: 5,
-      where: { createdAt: createdAtRange },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.product.findMany({
-      take: 5,
-      where: { createdAt: createdAtRange },
-      orderBy: { createdAt: "desc" },
-    }),
+    prisma.$queryRaw`
+      SELECT
+        TO_CHAR("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${zone}, 'YYYY-MM-DD') AS "label",
+        COALESCE(SUM("totalAmount"), 0)::float AS "total"
+      FROM "orders"
+      WHERE "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+        AND "status" != 'cancelled'
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `,
+    prisma.$queryRaw`
+      SELECT
+        COALESCE(c."id", 'uncategorized') AS "id",
+        COALESCE(c."name", 'Uncategorized') AS "label",
+        COALESCE(SUM(oi."price" * oi."quantity"), 0)::float AS "total"
+      FROM "order_items" oi
+      INNER JOIN "orders" o ON o."id" = oi."orderId"
+      INNER JOIN "products" p ON p."id" = oi."productId"
+      LEFT JOIN "categories" c ON c."id" = p."categoryId"
+      WHERE o."createdAt" >= ${start}
+        AND o."createdAt" <= ${end}
+        AND o."status" != 'cancelled'
+      GROUP BY c."id", c."name"
+      ORDER BY "total" DESC
+      LIMIT 5
+    `,
+    prisma.$queryRaw`
+      SELECT
+        p."id",
+        p."name",
+        p."images"[1] AS "image",
+        SUM(oi."quantity")::int AS "unitsSold",
+        SUM(oi."price" * oi."quantity")::float AS "revenue"
+      FROM "order_items" oi
+      INNER JOIN "orders" o ON o."id" = oi."orderId"
+      INNER JOIN "products" p ON p."id" = oi."productId"
+      WHERE o."createdAt" >= ${start}
+        AND o."createdAt" <= ${end}
+        AND o."status" != 'cancelled'
+      GROUP BY p."id", p."name", p."images"
+      ORDER BY "revenue" DESC
+      LIMIT 5
+    `,
   ]);
 
-  // รายได้ทั้งหมด
   const revenue = Number(orderSummaryAgg._sum.totalAmount ?? 0);
-  // จำนวนออเดอร์
   const ordersCount = orderSummaryAgg._count.id ?? 0;
-  //
   const aov = ordersCount > 0 ? Math.round(revenue / ordersCount) : 0;
 
   // Sale Trend Graph
   const salesTrendByPeriod = {};
 
   let cursor = startDt;
-
   while (cursor <= endDt) {
     const periodKey = cursor.toFormat(dateFormat);
-
-    const isoDate =
-      unit === "hour"
-        ? cursor.toFormat("yyyy-MM-dd'T'HH:00:00")
-        : unit === "week"
-          ? cursor.startOf("week").toISODate()
-          : unit === "month"
-            ? cursor.startOf("month").toISODate()
-            : unit === "year"
-              ? cursor.startOf("year").toISODate()
-              : cursor.toISODate();
-
     salesTrendByPeriod[periodKey] = {
-      date: isoDate,
+      label: periodKey,
       total: 0,
     };
-    cursor = cursor.plus({ [unit]: 1 });
+    cursor = cursor.plus({ days: 1 });
   }
 
-  ordersInRange.forEach((order) => {
-    const periodKey = DateTime.fromJSDate(order.createdAt)
-      .setZone(zone)
-      .toFormat(dateFormat);
-
-    if (salesTrendByPeriod[periodKey]) {
-      salesTrendByPeriod[periodKey].total += Number(order.totalAmount ?? 0);
+  trendRows.forEach((row) => {
+    if (salesTrendByPeriod[row.label]) {
+      salesTrendByPeriod[row.label].total = row.total;
     }
   });
 
   const salesTrend = Object.values(salesTrendByPeriod);
-
-  // Sale Trend By Category
-  const salesByCategoryMap = {};
-
-  orderItemsInRange.forEach((item) => {
-    const category = item.product?.categories;
-    const categoryId = category?.id || "uncategorized";
-    const categoryLabel = category?.name || "Uncategorized";
-    const itemRevenue = Number(item.price ?? 0) * Number(item.quantity ?? 0);
-
-    if (!salesByCategoryMap[categoryId]) {
-      salesByCategoryMap[categoryId] = {
-        id: categoryId,
-        label: categoryLabel,
-        total: 0,
-      };
-    }
-
-    salesByCategoryMap[categoryId].total += itemRevenue;
-  });
-  // แปลงเป็น Array แล้วเรียงจากยอดขายมากสุด -> น้อยสุด
-  const salesByCategory = Object.values(salesByCategoryMap).sort(
-    (a, b) => b.total - a.total,
-  );
-
-  const topProductsMap = {};
-
-  orderItemsInRange.forEach((item) => {
-    const product = item.product;
-    if (!product) return;
-    const qty = Number(item.quantity ?? 0);
-    const itemRevenue = Number(item.price ?? 0) * qty;
-    if (!topProductsMap[product.id]) {
-      topProductsMap[product.id] = {
-        id: product.id,
-        name: product.name,
-        image: product.images?.[0] || null,
-        unitsSold: 0,
-        revenue: 0,
-      };
-    }
-    topProductsMap[product.id].unitsSold += qty;
-    topProductsMap[product.id].revenue += itemRevenue;
-  });
-
-  const topProducts = Object.values(topProductsMap)
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
 
   return {
     kpis: {
@@ -171,7 +126,7 @@ export const getDashboardOverviewService = async ({
       aov,
     },
     salesTrend,
-    salesByCategory,
+    salesByCategory: trendCategory,
     recentOrders,
     topProducts,
   };
