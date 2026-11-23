@@ -46,6 +46,7 @@ model User {
   orders Order[]
 
   @@map("users") // ให้ชื่อตารางใน Database เป็น "users"
+  @@index([role,createdAt])
 }
 
 enum AddressTag {
@@ -179,6 +180,7 @@ model Order {
   updatedAt DateTime @updatedAt
 
   @@map("orders")
+  @@index([createdAt, status])
 }
 
 model OrderItem {
