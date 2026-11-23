@@ -124,11 +124,33 @@ export const cancelOrder = async (req, res) => {
  */
 export const getAllOrders = async (req, res) => {
   try {
-    const orders = await getAllOrdersService();
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.max(1, Number(req.query.limit) || 10);
+    const search = req.query.search || "";
+    const searchBy = req.query.searchBy || "";
+    const status = req.query.status || "";
+    const paymentStatus = req.query.paymentStatus || "";
+    const paymentMethod = req.query.paymentMethod || "";
+    const startDate = req.query.startDate || "";
+    const endDate = req.query.endDate || "";
+    const tz = req.query.tz || "UTC";
+
+    const result = await getAllOrdersService({
+      page,
+      limit,
+      search,
+      searchBy,
+      status,
+      paymentStatus,
+      paymentMethod,
+      startDate,
+      endDate,
+      tz,
+    });
 
     return res.status(200).json({
       success: true,
-      data: orders,
+      ...result,
     });
   } catch (error) {
     return res.status(500).json({
@@ -165,4 +187,3 @@ export const updateOrderStatus = async (req, res) => {
     });
   }
 };
-
