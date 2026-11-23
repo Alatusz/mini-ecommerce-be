@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import prisma from "../config/prisma.js";
+import { buildUtcDateRange } from "../utils/dateRange.js";
 
 const VALID_PAYMENT_METHODS = ["cod", "credit_card", "promptpay"];
 const VALID_ORDER_STATUSES = [
@@ -267,10 +268,97 @@ export const cancelOrderService = async (userId, orderId) => {
 /**
  * 5. ADMIN: ดึงรายการคำสั่งซื้อทั้งหมดในระบบ
  */
-export const getAllOrdersService = async () => {
+const parseCsvList = (val) =>
+  Array.isArray(val)
+    ? val
+    : typeof val === "string"
+      ? val
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
+
+export const getAllOrdersService = async ({
+  search = "",
+  searchBy = "",
+  page = 1,
+  limit = 10,
+  paymentStatus,
+  paymentMethod,
+  status,
+  startDate,
+  endDate,
+  tz = "UTC",
+} = {}) => {
+  const where = {};
+
+  if (startDate && endDate) {
+    const { start, end } = buildUtcDateRange(startDate, endDate, tz);
+    where.createdAt = { gte: start, lte: end };
+  }
+
+  const statuses = parseCsvList(status);
+  if (statuses.length > 0) where.status = { in: statuses };
+
+  const paymentStatuses = parseCsvList(paymentStatus);
+  if (paymentStatuses.length > 0) where.paymentStatus = { in: paymentStatuses };
+
+  const paymentMethods = parseCsvList(paymentMethod);
+  if (paymentMethods.length > 0) where.paymentMethod = { in: paymentMethods };
+
+  if (search && search.trim()) {
+    const q = search.trim();
+    const targets = parseCsvList(searchBy);
+    if (targets.length === 1 && targets[0] === "id") {
+      where.id = { contains: q, mode: "insensitive" };
+    } else if (targets.length === 1 && targets[0] === "customer") {
+      where.OR = [
+        { user: { firstName: { contains: q, mode: "insensitive" } } },
+        { user: { lastName: { contains: q, mode: "insensitive" } } },
+        { user: { email: { contains: q, mode: "insensitive" } } },
+      ];
+    } else {
+      where.OR = [
+        { id: { contains: q, mode: "insensitive" } },
+        { user: { email: { contains: q, mode: "insensitive" } } },
+        { user: { firstName: { contains: q, mode: "insensitive" } } },
+        { user: { lastName: { contains: q, mode: "insensitive" } } },
+      ];
+    }
+  }
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = parseInt(limit, 10) > 0 ? parseInt(limit, 10) : 10;
+  const skip = (pageNum - 1) * limitNum;
+
+  const total = await prisma.order.count({ where });
+
+  const kpisByStatuses = await prisma.order.groupBy({
+    by: ["status"],
+    where,
+    _count: { id: true },
+    _sum: { totalAmount: true },
+  });
+
+  const summaryByStatus = kpisByStatuses.map((g) => ({
+    status: g.status,
+    count: g._count.id,
+    total: Number(g._sum.totalAmount ?? 0),
+  }));
+
   const orders = await prisma.order.findMany({
+    where,
+    take: limitNum,
+    skip,
     orderBy: { createdAt: "desc" },
-    include: {
+    select: {
+      id: true,
+      totalAmount: true,
+      status: true,
+      paymentMethod: true,
+      paymentStatus: true,
+      createdAt: true,
+      updatedAt: true,
       user: {
         select: {
           id: true,
@@ -279,21 +367,11 @@ export const getAllOrdersService = async () => {
           lastName: true,
         },
       },
-      items: {
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              images: true,
-            },
-          },
-        },
-      },
+      _count: { select: { items: true } },
     },
   });
 
-  return orders;
+  return { total, summaryByStatus, orders };
 };
 
 /**
