@@ -5,6 +5,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  patchProductStatus,
 } from "../controllers/product.controller.js";
 import { authenticate, authorize } from "../services/auth.service.js";
 
@@ -22,6 +23,12 @@ router.get("/:id", getProductIdProduct);
 
 router.post("/", authenticate, authorize("admin", "staff"), createProduct);
 router.put("/:id", authenticate, authorize("admin", "staff"), updateProduct);
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorize("admin", "staff"),
+  patchProductStatus,
+);
 router.delete("/:id", authenticate, authorize("admin"), deleteProduct);
 
 export default router;

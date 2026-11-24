@@ -178,10 +178,13 @@ export const getAllProductsService = async ({
       take: limitNum,
       include: {
         categories: {
-          select: { id: true, name: true, slug: true },
+          select: { id: true, name: true, slug: true, status: true },
+        },
+        _count: {
+          select: { orderItems: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     }),
     prisma.product.count({ where }),
     prisma.product.aggregate({
@@ -213,6 +216,7 @@ export const getAllProductsService = async ({
     status: prod.status,
     images: prod.images || [],
     categories: prod.categories ? [prod.categories] : [],
+    ordersCount: prod._count?.orderItems ?? 0,
     createdAt: prod.createdAt,
     updatedAt: prod.updatedAt,
   }));
@@ -427,15 +431,83 @@ export const updateProductService = async (
 export const deleteProductService = async (id) => {
   const product = await prisma.product.findUnique({
     where: { id },
+    include: {
+      _count: {
+        select: { orderItems: true },
+      },
+    },
   });
 
   if (!product) {
     throw new Error("Product not found");
   }
 
-  await prisma.product.delete({
-    where: { id },
+  if ((product._count?.orderItems ?? 0) > 0) {
+    throw new Error(
+      "Cannot delete product with existing orders. Please archive it instead.",
+    );
+  }
+
+  if (product.status === "published") {
+    throw new Error(
+      "Cannot delete a published product. Please set it to draft or archived first.",
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.cartItem.deleteMany({
+      where: { productId: id },
+    });
+    await tx.product.delete({
+      where: { id },
+    });
   });
 
   return { message: "Product deleted successfully" };
+};
+
+const VALID_PRODUCT_STATUSES = ["draft", "published", "archived"];
+
+export const patchProductStatusService = async (id, status) => {
+  if (!status || !VALID_PRODUCT_STATUSES.includes(status)) {
+    throw new Error(
+      `Invalid status. Must be one of: ${VALID_PRODUCT_STATUSES.join(", ")}`,
+    );
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: {
+      categories: {
+        select: { status: true },
+      },
+    },
+  });
+
+  if (!product) {
+    throw new Error("Product not found");
+  }
+
+  if (status === "published") {
+    if (!product.categories || product.categories.status !== "active") {
+      throw new Error(
+        "Category must be active before publishing product",
+      );
+    }
+    if (product.sellPrice === null || product.sellPrice === undefined || product.sellPrice <= 0) {
+      throw new Error(
+        "Sell price must be greater than 0 before publishing product",
+      );
+    }
+  }
+
+  return prisma.product.update({
+    where: { id },
+    data: { status },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+    },
+  });
 };

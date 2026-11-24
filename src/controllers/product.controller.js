@@ -4,6 +4,7 @@ import {
   createProductService,
   updateProductService,
   deleteProductService,
+  patchProductStatusService,
 } from "../services/product.services.js";
 
 export const createProduct = async (req, res) => {
@@ -186,6 +187,27 @@ export const getProductIdProduct = async (req, res) => {
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to fetch category",
+    });
+  }
+};
+
+export const patchProductStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const updated = await patchProductStatusService(id, status);
+
+    return res.status(200).json({
+      success: true,
+      message: "Product status updated successfully",
+      data: updated,
+    });
+  } catch (error) {
+    const statusCode = error.message === "Product not found" ? 404 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to update product status",
     });
   }
 };
