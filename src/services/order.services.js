@@ -17,7 +17,7 @@ const VALID_PAYMENT_STATUSES = ["pending", "completed", "failed", "refund"];
  */
 export const createOrderService = async (
   userId,
-  { addressId, paymentMethod = "cod" },
+  { addressId, paymentMethod = "cod", shippingRateId },
 ) => {
   if (!addressId) {
     throw new Error("Address ID is required");
@@ -110,13 +110,41 @@ export const createOrderService = async (
       });
     }
 
+    let shippingSnapshot = {
+      shippingRateId: null,
+      shippingMethodName: "Standard Delivery",
+      shippingCost: 0,
+    };
+
+    if (shippingRateId) {
+      const rate = await tx.shippingRate.findUnique({
+        where: { id: shippingRateId },
+      });
+
+      if (!rate || !rate.isActive) {
+        throw new Error("Selected shipping method is not available");
+      }
+
+      const isFree =
+        rate.freeMinSpend !== null && totalAmount >= rate.freeMinSpend;
+
+      shippingSnapshot = {
+        shippingRateId: rate.id,
+        shippingMethodName: rate.name,
+        shippingCost: isFree ? 0 : rate.price,
+      };
+    }
+
+    const finalTotalAmount = totalAmount + shippingSnapshot.shippingCost;
+
     // สร้าง Order พร้อม Order Items (Nested Create)
     const orderId = `order-${crypto.randomUUID().slice(0, 8)}`;
     const createdOrder = await tx.order.create({
       data: {
         id: orderId,
         userId,
-        totalAmount,
+        totalAmount: finalTotalAmount,
+        ...shippingSnapshot,
         status: "pending",
         paymentMethod,
         paymentStatus: "pending",

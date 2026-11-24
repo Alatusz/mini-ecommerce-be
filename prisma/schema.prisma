@@ -26,7 +26,7 @@ enum CategoryStatus {
 }
 
 model User {
-  id       String @id @default(uuid())
+  id       String     @id @default(uuid())
   email    String     @unique
   password String
   role     Role       @default(customer)
@@ -45,8 +45,8 @@ model User {
 
   orders Order[]
 
+  @@index([role, createdAt])
   @@map("users") // ให้ชื่อตารางใน Database เป็น "users"
-  @@index([role,createdAt])
 }
 
 enum AddressTag {
@@ -175,12 +175,17 @@ model Order {
 
   shippingAddress String
   shippingPhone   String
+  
+  shippingRateId     String?
+  shippingRate       ShippingRate? @relation(fields: [shippingRateId], references: [id])
+  shippingMethodName String?
+  shippingCost       Int           @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("orders")
   @@index([createdAt, status])
+  @@map("orders")
 }
 
 model OrderItem {
@@ -230,4 +235,21 @@ model Coupon {
 
   @@index([status, discountType])
   @@map("coupons")
+}
+
+model ShippingRate {
+  id           String   @id
+  name         String
+  price        Int      @default(0)
+  freeMinSpend Int?
+  minDays      Int      @default(1)
+  maxDays      Int      @default(3)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  orders       Order[]
+
+  @@index([isActive, sortOrder])
+  @@map("shipping_rates")
 }

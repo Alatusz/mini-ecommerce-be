@@ -14,11 +14,12 @@ import {
 export const createOrder = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { addressId, paymentMethod } = req.body;
+    const { addressId, paymentMethod, shippingRateId } = req.body;
 
     const order = await createOrderService(userId, {
       addressId,
       paymentMethod,
+      shippingRateId,
     });
 
     return res.status(201).json({
