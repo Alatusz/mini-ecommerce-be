@@ -15,6 +15,7 @@ import cartRoutes from "./routes/cart.routes.js";
 import orderRoutes from "./routes/order.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import couponRoutes from "./routes/coupon.routes.js";
+import storefrontRoutes from "./routes/storefront.routes.js";
 
 dotenv.config();
 
@@ -56,6 +57,7 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/coupons", couponRoutes);
+app.use("/api/storefront", storefrontRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on: http://localhost:${PORT}`);
