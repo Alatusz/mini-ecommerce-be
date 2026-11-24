@@ -7,10 +7,12 @@ export const getProfileService = async (userId) => {
     select: {
       id: true,
       email: true,
+      role: true,
       firstName: true,
       lastName: true,
       phone: true,
       bio: true,
+      createdAt: true,
       addresses: true,
     },
   });
