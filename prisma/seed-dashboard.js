@@ -11,7 +11,8 @@ async function main() {
     process.exit(1);
   }
 
-  const product = await prisma.product.findFirst();
+  const products = await prisma.product.findMany();
+  const fallbackProduct = products.length === 0 ? await prisma.product.findFirst() : null;
 
   const daysAgoList = [13, 12, 10, 9, 8, 7, 5, 4, 3, 2, 1, 0];
   const statuses = [
@@ -37,6 +38,8 @@ async function main() {
     createdAt.setHours(10 + (i % 8), 15, 0, 0);
 
     const orderId = `SEED-${Date.now()}-${i}-${crypto.randomBytes(2).toString("hex")}`;
+
+    const product = products.length > 0 ? products[i % products.length] : fallbackProduct;
 
     await prisma.order.create({
       data: {

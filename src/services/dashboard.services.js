@@ -1,65 +1,133 @@
 import prisma from "../config/prisma.js";
-import { buildUtcDateRange } from "../utils/dateRange.js";
-import { DateTime } from "luxon";
+import { buildDashboardRange } from "../utils/dateRange.js";
 
 export const getDashboardOverviewService = async ({
   startDate,
   endDate,
   tz,
 }) => {
-  const { start, end, zone } = buildUtcDateRange(startDate, endDate, tz);
+  const { start, end, startDt, endDt, zone } = buildDashboardRange({
+    startDate,
+    endDate,
+    tz,
+  });
 
-  const dateFilter = {
+  const dateFormat = "yyyy-MM-dd";
+
+  const createdAtRange = {
     gte: start,
     lte: end,
   };
 
-  const [ordersAgg, newCustomers, trendOrders] = await Promise.all([
+  const [
+    orderSummaryAgg,
+    newCustomerCount,
+    recentOrders,
+    trendRows,
+    trendCategory,
+    topProducts,
+  ] = await Promise.all([
     prisma.order.aggregate({
-      where: { createdAt: dateFilter, status: { not: "cancelled" } },
+      where: { createdAt: createdAtRange, status: { not: "cancelled" } },
       _sum: { totalAmount: true },
       _count: { id: true },
     }),
     prisma.user.count({
-      where: { role: "customer", createdAt: dateFilter },
+      where: { role: "customer", createdAt: createdAtRange },
     }),
     prisma.order.findMany({
-      where: { createdAt: dateFilter, status: { not: "cancelled" } },
-      select: { createdAt: true, totalAmount: true },
-      orderBy: { createdAt: "asc" },
+      take: 5,
+      where: { createdAt: createdAtRange },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        totalAmount: true,
+        status: true,
+        createdAt: true,
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
     }),
+    prisma.$queryRaw`
+      SELECT
+        TO_CHAR("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${zone}, 'YYYY-MM-DD') AS "label",
+        COALESCE(SUM("totalAmount"), 0)::float AS "total"
+      FROM "orders"
+      WHERE "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+        AND "status" != 'cancelled'
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `,
+    prisma.$queryRaw`
+      SELECT
+        COALESCE(c."id", 'uncategorized') AS "id",
+        COALESCE(c."name", 'Uncategorized') AS "label",
+        COALESCE(SUM(oi."price" * oi."quantity"), 0)::float AS "total"
+      FROM "order_items" oi
+      INNER JOIN "orders" o ON o."id" = oi."orderId"
+      INNER JOIN "products" p ON p."id" = oi."productId"
+      LEFT JOIN "categories" c ON c."id" = p."categoryId"
+      WHERE o."createdAt" >= ${start}
+        AND o."createdAt" <= ${end}
+        AND o."status" != 'cancelled'
+      GROUP BY c."id", c."name"
+      ORDER BY "total" DESC
+      LIMIT 5
+    `,
+    prisma.$queryRaw`
+      SELECT
+        p."id",
+        p."name",
+        p."images"[1] AS "image",
+        SUM(oi."quantity")::int AS "unitsSold",
+        SUM(oi."price" * oi."quantity")::float AS "revenue"
+      FROM "order_items" oi
+      INNER JOIN "orders" o ON o."id" = oi."orderId"
+      INNER JOIN "products" p ON p."id" = oi."productId"
+      WHERE o."createdAt" >= ${start}
+        AND o."createdAt" <= ${end}
+        AND o."status" != 'cancelled'
+      GROUP BY p."id", p."name", p."images"
+      ORDER BY "revenue" DESC
+      LIMIT 5
+    `,
   ]);
 
-  const revenue = Number(ordersAgg._sum.totalAmount ?? 0);
-  
-  const ordersCount = ordersAgg._count.id ?? 0;
+  const revenue = Number(orderSummaryAgg._sum.totalAmount ?? 0);
+  const ordersCount = orderSummaryAgg._count.id ?? 0;
   const aov = ordersCount > 0 ? Math.round(revenue / ordersCount) : 0;
 
-  const grouped = {};
-  trendOrders.forEach((order) => {
-    // แปลงเวลาเป็นวันที่ตาม TimeZone ของ User เช่น "2026-11-16"
-    const date = DateTime.fromJSDate(order.createdAt).setZone(zone).toISODate();
-    // ถ้ายังไม่มีวันนี้ใน grouped ให้สร้างค่าเริ่มต้นก่อน
-    if (!grouped[date]) {
-      grouped[date] = { date, revenue: 0, orders: 0 };
+  // Sale Trend Graph
+  const salesTrendByPeriod = {};
+
+  let cursor = startDt;
+  while (cursor <= endDt) {
+    const periodKey = cursor.toFormat(dateFormat);
+    salesTrendByPeriod[periodKey] = {
+      label: periodKey,
+      total: 0,
+    };
+    cursor = cursor.plus({ days: 1 });
+  }
+
+  trendRows.forEach((row) => {
+    if (salesTrendByPeriod[row.label]) {
+      salesTrendByPeriod[row.label].total = row.total;
     }
-    // บวกยอดเงินและจำนวนออเดอร์เข้าไป
-    grouped[date].revenue += Number(order.totalAmount ?? 0);
-    grouped[date].orders += 1;
   });
-  // 3. แปลง Object เป็น Array ส่งให้กราฟ
-  const salesTrend = Object.values(grouped);
+
+  const salesTrend = Object.values(salesTrendByPeriod);
 
   return {
     kpis: {
       revenue,
       ordersCount,
-      newCustomers,
+      newCustomers: newCustomerCount,
       aov,
     },
     salesTrend,
-    // salesByCategory,
-    // recentOrders,
-    // topProducts,
+    salesByCategory: trendCategory,
+    recentOrders,
+    topProducts,
   };
 };
