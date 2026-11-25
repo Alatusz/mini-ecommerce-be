@@ -102,7 +102,7 @@ export const getAllUsers = async (req, res) => {
       ...result,
     });
   } catch (error) {
-    return res.status(400).json({
+    return res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch users",
     });

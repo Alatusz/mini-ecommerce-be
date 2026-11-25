@@ -6,10 +6,13 @@ import {
   updateCoupon,
   patchCouponStatus,
   deleteCoupon,
+  validateCoupon
 } from "../controllers/coupon.controller.js";
 import { authenticate, authorize } from "../services/auth.service.js";
 
 const router = express.Router();
+
+router.post("/validate", authenticate, validateCoupon);
 
 router.use(authenticate, authorize("admin", "staff"));
 

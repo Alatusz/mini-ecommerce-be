@@ -17,7 +17,7 @@ const VALID_PAYMENT_STATUSES = ["pending", "completed", "failed", "refund"];
  */
 export const createOrderService = async (
   userId,
-  { addressId, paymentMethod = "cod", shippingRateId },
+  { addressId, paymentMethod = "cod", shippingRateId, couponCode },
 ) => {
   if (!addressId) {
     throw new Error("Address ID is required");
@@ -135,7 +135,63 @@ export const createOrderService = async (
       };
     }
 
-    const finalTotalAmount = totalAmount + shippingSnapshot.shippingCost;
+    let couponCodeSnapshot = {
+      couponCode: null,
+      discountAmount: 0,
+    };
+
+    if (couponCode && couponCode.trim()) {
+      const coupon = await tx.coupon.findUnique({
+        where: { code: couponCode.trim().toUpperCase() },
+      });
+
+      if (!coupon) {
+        throw new Error("Coupon Not Found");
+      }
+
+      if (coupon.status !== "active") {
+        throw new Error("Coupon is not active");
+      }
+
+      const now = new Date();
+
+      if (now < coupon.startDate || now > coupon.expiredDate) {
+        throw new Error("Invalid Coupon");
+      }
+
+      if (totalAmount < coupon.minSpend) {
+        throw new Error(`Minimum spend of ${coupon.minSpend} is required`);
+      }
+
+      if (
+        coupon.usageLimit !== null &&
+        coupon.usageCount >= coupon.usageLimit
+      ) {
+        throw new Error("Coupon usage limit reached");
+      }
+
+      const rawDiscount =
+        coupon.discountType === "percent"
+          ? Math.floor((totalAmount * coupon.discountValue) / 100)
+          : coupon.discountValue;
+
+      const discountAmount = Math.min(rawDiscount, totalAmount);
+
+      couponCodeSnapshot = {
+        couponCode: coupon.code,
+        discountAmount,
+      };
+
+      await tx.coupon.update({
+        where: { id: coupon.id },
+        data: { usageCount: { increment: 1 } },
+      });
+    }
+
+    const finalTotalAmount =
+      totalAmount -
+      couponCodeSnapshot.discountAmount +
+      shippingSnapshot.shippingCost;
 
     // สร้าง Order พร้อม Order Items (Nested Create)
     const orderId = `order-${crypto.randomUUID().slice(0, 8)}`;
@@ -144,6 +200,7 @@ export const createOrderService = async (
         id: orderId,
         userId,
         totalAmount: finalTotalAmount,
+        ...couponCodeSnapshot,
         ...shippingSnapshot,
         status: "pending",
         paymentMethod,

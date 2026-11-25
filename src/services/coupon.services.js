@@ -4,7 +4,10 @@ const parseCsvList = (val) =>
   Array.isArray(val)
     ? val
     : typeof val === "string"
-      ? val.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+      ? val
+          .split(",")
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
       : [];
 
 export const getAllCouponsService = async ({
@@ -21,12 +24,12 @@ export const getAllCouponsService = async ({
   const where = {};
 
   const types = parseCsvList(type).filter((t) =>
-    ["percent", "fixed"].includes(t)
+    ["percent", "fixed"].includes(t),
   );
   if (types.length > 0) where.discountType = { in: types };
 
   const statuses = parseCsvList(status).filter((s) =>
-    ["active", "scheduled", "expired", "disabled"].includes(s)
+    ["active", "scheduled", "expired", "disabled"].includes(s),
   );
   if (statuses.length > 0) where.status = { in: statuses };
 
@@ -116,7 +119,9 @@ export const updateCouponService = async (id, data) => {
     data: {
       ...(data.code !== undefined && { code: data.code.trim().toUpperCase() }),
       ...(data.description !== undefined && { description: data.description }),
-      ...(data.discountType !== undefined && { discountType: data.discountType }),
+      ...(data.discountType !== undefined && {
+        discountType: data.discountType,
+      }),
       ...(data.discountValue !== undefined && {
         discountValue: Number(data.discountValue),
       }),
@@ -153,4 +158,50 @@ export const deleteCouponService = async (id) => {
   if (!existing) throw new Error("Coupon not found");
   await prisma.coupon.delete({ where: { id } });
   return { id };
+};
+
+export const validateCouponService = async ({ code, subtotal }) => {
+  if (!code || !code?.trim()) {
+    throw new Error("Coupon code is required");
+  }
+
+  const coupon = await prisma.coupon.findUnique({
+    where: { code: code.trim().toUpperCase() },
+  });
+
+  if (!coupon) {
+    throw new Error("Coupon code is required");
+  }
+
+  if (coupon.status !== "active") {
+    throw new Error("Coupon is not active");
+  }
+
+  const now = new Date();
+
+  if (now < coupon.startDate || now > coupon.expiredDate) {
+    throw new Error("Coupon is expired or not yet active");
+  }
+
+  if (Number(subtotal) < coupon.minSpend) {
+    throw new Error(`Minimum spend of ${coupon.minSpend} is required`);
+  }
+
+  if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
+    throw new Error("Coupon usage limit reached");
+  }
+
+  const rawDiscount =
+    coupon.discountType === "percent"
+      ? Math.floor((Number(subtotal) * coupon.discountValue) / 100)
+      : coupon.discountValue;
+
+  const discountAmount = Math.min(rawDiscount, Number(subtotal));
+
+  return {
+    couponCode: coupon.code,
+    discountType: coupon.discountType,
+    discountValue: coupon.discountValue,
+    discountAmount,
+  };
 };

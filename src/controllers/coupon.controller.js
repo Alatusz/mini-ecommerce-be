@@ -5,6 +5,7 @@ import {
   updateCouponService,
   patchCouponStatusService,
   deleteCouponService,
+  validateCouponService,
 } from "../services/coupon.services.js";
 
 const NOT_FOUND = "Coupon not found";
@@ -21,7 +22,7 @@ export const getAllCoupons = async (req, res) => {
     });
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
-    return res.status(400).json({
+    return res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch coupons",
     });
@@ -76,7 +77,10 @@ export const updateCoupon = async (req, res) => {
 
 export const patchCouponStatus = async (req, res) => {
   try {
-    const coupon = await patchCouponStatusService(req.params.id, req.body.status);
+    const coupon = await patchCouponStatusService(
+      req.params.id,
+      req.body.status,
+    );
     return res.status(200).json({
       success: true,
       message: "Coupon status updated successfully",
@@ -103,6 +107,24 @@ export const deleteCoupon = async (req, res) => {
     return res.status(code).json({
       success: false,
       message: error.message || "Failed to delete coupon",
+    });
+  }
+};
+
+export const validateCoupon = async (req, res) => {
+  try {
+    const data = await validateCouponService(req.body);
+
+    return res.status(200).json({
+      success: true,
+      message: "Coupon Applied",
+      data,
+    });
+  } catch (error) {
+    const code = error.message === NOT_FOUND ? 404 : 400;
+    return res.status(code).json({
+      success: false,
+      message: error.message || "Invalid coupon",
     });
   }
 };

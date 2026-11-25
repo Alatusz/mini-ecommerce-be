@@ -175,11 +175,14 @@ model Order {
 
   shippingAddress String
   shippingPhone   String
-  
+
   shippingRateId     String?
   shippingRate       ShippingRate? @relation(fields: [shippingRateId], references: [id])
   shippingMethodName String?
   shippingCost       Int           @default(0)
+
+  couponCode     String?
+  discountAmount Int     @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
