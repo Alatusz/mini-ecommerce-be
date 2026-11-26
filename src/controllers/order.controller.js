@@ -164,18 +164,15 @@ export const getAllOrders = async (req, res) => {
 };
 
 /**
- * 6. ADMIN/STAFF: อัปเดตสถานะคำสั่งซื้อหรือสถานะการชำระเงิน
+ * 6. ADMIN/STAFF: อัปเดตสถานะคำสั่งซื้อ
  * PUT /api/orders/:id/status
  */
 export const updateOrderStatus = async (req, res) => {
   try {
     const orderId = req.params.id;
-    const { status, paymentStatus } = req.body;
+    const { status } = req.body;
 
-    const order = await updateOrderStatusService(orderId, {
-      status,
-      paymentStatus,
-    });
+    const order = await updateOrderStatusService(orderId, { status });
 
     return res.status(200).json({
       success: true,
