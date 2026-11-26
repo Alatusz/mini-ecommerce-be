@@ -252,30 +252,52 @@ export const getProductByIdService = async (id) => {
     throw new Error("Product not found");
   }
 
-  const reviewItems = await prisma.orderItem.findMany({
-    where: {
-      productId: product.id,
-      rating: { gt: 0 },
-    },
-    orderBy: { ratedAt: "desc" },
-    take: 10,
-    select: {
-      id: true,
-      rating: true,
-      review: true,
-      ratedAt: true,
-      order: {
-        select: {
-          user: {
-            select: {
-              firstName: true,
-              lastName: true,
+  const [reviewItems, ratingGroups] = await Promise.all([
+    prisma.orderItem.findMany({
+      where: {
+        productId: product.id,
+        rating: { gt: 0 },
+      },
+      orderBy: { ratedAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        rating: true,
+        review: true,
+        ratedAt: true,
+        order: {
+          select: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.orderItem.groupBy({
+      by: ["rating"],
+      where: {
+        productId: product.id,
+        rating: { gt: 0 },
+      },
+      _count: { id: true },
+    }),
+  ]);
+
+  const ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  for (const group of ratingGroups) {
+    if (group.rating >= 1 && group.rating <= 5) {
+      ratingBreakdown[group.rating] = group._count.id;
+    }
+  }
+
+  const totalRatingCount = Object.values(ratingBreakdown).reduce(
+    (sum, count) => sum + count,
+    0,
+  );
 
   const reviews = reviewItems.map((item) => {
     const fullName = [item.order?.user?.firstName, item.order?.user?.lastName]
@@ -304,7 +326,8 @@ export const getProductByIdService = async (id) => {
     status: product.status,
     categories: product.categories ? [product.categories] : [],
     ratingAvg: product.ratingAvg ?? 0,
-    ratingCount: product.ratingCount ?? 0,
+    ratingCount: totalRatingCount,
+    ratingBreakdown,
     reviews,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
