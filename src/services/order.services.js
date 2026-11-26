@@ -238,12 +238,13 @@ export const createOrderService = async (
 };
 
 /**
- * 2. ดูประวัติคำสั่งซื้อของผู้ใช้ปัจจุบัน
+ * 2. ดูประวัติคำสั่งซื้อของผู้ใช้ปัจจุบัน (5 รายการล่าสุด)
  */
 export const getMyOrdersService = async (userId) => {
   const orders = await prisma.order.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
+    take: 5,
     include: {
       items: {
         include: {
