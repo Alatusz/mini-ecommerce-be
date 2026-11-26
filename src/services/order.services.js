@@ -527,3 +527,61 @@ export const updateOrderStatusService = async (
 
   return updatedOrder;
 };
+
+export const rateOrderItemService = async (userId, { itemId, rating }) => {
+  const parsedRating = Number(rating);
+
+  if (!Number.isInteger(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+    throw new Error("Rating must be an integer between 1 and 5");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const item = await tx.orderItem.findUnique({
+      where: { id: itemId },
+      include: { order: true, product: true },
+    });
+
+    if (!item) {
+      throw new Error("Order item not found");
+    }
+
+    if (item.order.userId !== userId) {
+      throw new Error("Unauthorized to rate this order");
+    }
+
+    if (item.order.status !== "delivered") {
+      throw new Error("You can only rate delivered orders");
+    }
+
+    if (item.rating > 0) {
+      throw new Error("You have already rated this item");
+    }
+
+    const update = await tx.orderItem.update({
+      where: { id: itemId },
+      data: { rating: parsedRating },
+    });
+
+    const newCount = item.product.ratingCount + 1;
+
+    const newAvg = Number(
+      (
+        (item.product.ratingAvg * item.product.ratingCount + parsedRating) /
+        newCount
+      ).toFixed(2),
+    );
+
+    await tx.product.update({
+      where: { id: item.productId },
+      data: { ratingCount: newCount, ratingAvg: newAvg },
+    });
+
+    return {
+      itemId,
+      productId: item.productId,
+      rating: parsedRating,
+      ratingAvg: newAvg,
+      ratingCount: newCount,
+    };
+  });
+};
