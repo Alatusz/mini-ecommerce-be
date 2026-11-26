@@ -10,7 +10,39 @@ const VALID_ORDER_STATUSES = [
   "delivered",
   "cancelled",
 ];
-const VALID_PAYMENT_STATUSES = ["pending", "completed", "failed", "refund"];
+
+const PREPAID_TRANSITIONS = {
+  pending: ["paid", "cancelled"],
+  paid: ["shipped", "cancelled"],
+  shipped: ["delivered"],
+  delivered: [],
+  cancelled: [],
+};
+
+const COD_TRANSITIONS = {
+  pending: ["shipped", "cancelled"],
+  shipped: ["delivered", "cancelled"],
+  delivered: [],
+  cancelled: [],
+};
+
+function getAllowedNextStatuses(currentStatus, paymentMethod) {
+  const table = paymentMethod === "cod" ? COD_TRANSITIONS : PREPAID_TRANSITIONS;
+  return table[currentStatus] || [];
+}
+
+function resolveSyncedPaymentStatus(
+  nextStatus,
+  currentPaymentStatus,
+  paymentMethod,
+) {
+  if (nextStatus === "paid") return "completed";
+  if (nextStatus === "delivered" && paymentMethod === "cod") return "completed";
+  if (nextStatus === "cancelled") {
+    return currentPaymentStatus === "completed" ? "refund" : "failed";
+  }
+  return currentPaymentStatus;
+}
 
 /**
  * 1. สร้าง Order จากตะกร้าสินค้า
@@ -336,11 +368,18 @@ export const cancelOrderService = async (userId, orderId) => {
       });
     }
 
+    const nextPaymentStatus = resolveSyncedPaymentStatus(
+      "cancelled",
+      order.paymentStatus,
+      order.paymentMethod,
+    );
+
     // 2. อัปเดตสถานะคำสั่งซื้อเป็น cancelled
     return await tx.order.update({
       where: { id: orderId },
       data: {
         status: "cancelled",
+        paymentStatus: nextPaymentStatus,
       },
       include: {
         items: true,
@@ -461,12 +500,19 @@ export const getAllOrdersService = async ({
 };
 
 /**
- * 6. ADMIN: อัปเดตสถานะคำสั่งซื้อหรือสถานะการชำระเงิน
+ * 6. ADMIN: อัปเดตสถานะคำสั่งซื้อ (คำนวณ paymentStatus ให้สอดคล้องอัตโนมัติ)
  */
-export const updateOrderStatusService = async (
-  orderId,
-  { status, paymentStatus },
-) => {
+export const updateOrderStatusService = async (orderId, { status }) => {
+  if (!status) {
+    throw new Error("Order status is required");
+  }
+
+  if (!VALID_ORDER_STATUSES.includes(status)) {
+    throw new Error(
+      `Invalid status. Must be one of: ${VALID_ORDER_STATUSES.join(", ")}`,
+    );
+  }
+
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: true },
@@ -476,24 +522,26 @@ export const updateOrderStatusService = async (
     throw new Error("Order not found");
   }
 
-  if (order.status === "cancelled" && status && status !== "cancelled") {
-    throw new Error("Cannot change status of an already cancelled order");
+  if (status === order.status) {
+    return order;
   }
 
-  if (status && !VALID_ORDER_STATUSES.includes(status)) {
+  const allowed = getAllowedNextStatuses(order.status, order.paymentMethod);
+
+  if (!allowed.includes(status)) {
     throw new Error(
-      `Invalid status. Must be one of: ${VALID_ORDER_STATUSES.join(", ")}`,
+      `Cannot change status from "${order.status}" to "${status}" for ${order.paymentMethod}`,
     );
   }
 
-  if (paymentStatus && !VALID_PAYMENT_STATUSES.includes(paymentStatus)) {
-    throw new Error(
-      `Invalid paymentStatus. Must be one of: ${VALID_PAYMENT_STATUSES.join(", ")}`,
-    );
-  }
+  const nextPaymentStatus = resolveSyncedPaymentStatus(
+    status,
+    order.paymentStatus,
+    order.paymentMethod,
+  );
 
-  // หากเปลี่ยนสถานะเป็น cancelled และสถานะเดิมไม่ใช่ cancelled ให้คืนสต็อกสินค้าด้วย
-  if (status === "cancelled" && order.status !== "cancelled") {
+  // หากเปลี่ยนสถานะเป็น cancelled ให้คืนสต็อกสินค้ากลับเข้าคลังด้วย
+  if (status === "cancelled") {
     return await prisma.$transaction(async (tx) => {
       for (const item of order.items) {
         await tx.product.update({
@@ -505,8 +553,8 @@ export const updateOrderStatusService = async (
       return await tx.order.update({
         where: { id: orderId },
         data: {
-          status: status || undefined,
-          paymentStatus: paymentStatus || undefined,
+          status,
+          paymentStatus: nextPaymentStatus,
         },
         include: {
           items: true,
@@ -515,18 +563,16 @@ export const updateOrderStatusService = async (
     });
   }
 
-  const updatedOrder = await prisma.order.update({
+  return await prisma.order.update({
     where: { id: orderId },
     data: {
-      status: status || undefined,
-      paymentStatus: paymentStatus || undefined,
+      status,
+      paymentStatus: nextPaymentStatus,
     },
     include: {
       items: true,
     },
   });
-
-  return updatedOrder;
 };
 
 export const rateOrderItemService = async (
