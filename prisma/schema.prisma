@@ -96,7 +96,6 @@ model Product {
   name          String        @unique
   slug          String        @unique
   description   String?
-  originalPrice Int?
   sellPrice     Int?
   stock         Int           @default(0)
   images        String[]

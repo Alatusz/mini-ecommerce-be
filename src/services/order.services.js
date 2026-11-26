@@ -99,7 +99,7 @@ export const createOrderService = async (
   let totalAmount = 0;
 
   const orderItemsData = cart.items.map((item) => {
-    const itemPrice = item.product.sellPrice ?? item.product.originalPrice ?? 0;
+    const itemPrice = item.product.sellPrice ?? 0;
 
     totalAmount += itemPrice * item.quantity;
 
@@ -286,7 +286,6 @@ export const getMyOrdersService = async (userId) => {
               name: true,
               images: true,
               sellPrice: true,
-              originalPrice: true,
             },
           },
         },
