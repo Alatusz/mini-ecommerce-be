@@ -252,6 +252,45 @@ export const getProductByIdService = async (id) => {
     throw new Error("Product not found");
   }
 
+  const reviewItems = await prisma.orderItem.findMany({
+    where: {
+      productId: product.id,
+      rating: { gt: 0 },
+    },
+    orderBy: { ratedAt: "desc" },
+    take: 10,
+    select: {
+      id: true,
+      rating: true,
+      review: true,
+      ratedAt: true,
+      order: {
+        select: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const reviews = reviewItems.map((item) => {
+    const fullName = [item.order?.user?.firstName, item.order?.user?.lastName]
+      .filter(Boolean)
+      .join(" ");
+
+    return {
+      id: item.id,
+      rating: item.rating,
+      review: item.review,
+      ratedAt: item.ratedAt,
+      reviewerName: fullName || "Verified Buyer",
+    };
+  });
+
   return {
     id: product.id,
     name: product.name,
@@ -264,6 +303,9 @@ export const getProductByIdService = async (id) => {
     images: product.images || [],
     status: product.status,
     categories: product.categories ? [product.categories] : [],
+    ratingAvg: product.ratingAvg ?? 0,
+    ratingCount: product.ratingCount ?? 0,
+    reviews,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };
@@ -490,11 +532,13 @@ export const patchProductStatusService = async (id, status) => {
 
   if (status === "published") {
     if (!product.categories || product.categories.status !== "active") {
-      throw new Error(
-        "Category must be active before publishing product",
-      );
+      throw new Error("Category must be active before publishing product");
     }
-    if (product.sellPrice === null || product.sellPrice === undefined || product.sellPrice <= 0) {
+    if (
+      product.sellPrice === null ||
+      product.sellPrice === undefined ||
+      product.sellPrice <= 0
+    ) {
       throw new Error(
         "Sell price must be greater than 0 before publishing product",
       );
