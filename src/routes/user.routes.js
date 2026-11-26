@@ -10,21 +10,28 @@ import {
   deleteUser,
   patchUserStatus,
 } from "../controllers/user.controller.js";
-import { authenticate } from "../services/auth.service.js";
+import { authenticate, authorize } from "../services/auth.service.js";
 
 const router = express.Router();
 
-router.use(authenticate)
+router.use(authenticate);
 
-router.get("/profile",getProfile)
-router.put("/profile",updateProfile)
-router.put("/change-password",changePassword)
+// USER
+router.get("/profile", getProfile);
+router.put("/profile", updateProfile);
+router.put("/change-password", changePassword);
 
-router.get("/", getAllUsers)
-router.get("/:id", getUserById)
-router.post("/", createUser)
-router.put("/:id", updateUser)
-router.patch("/:id/status", patchUserStatus)
-router.delete("/:id", deleteUser)
+// ADMIN STAFF
+router.get("/", authenticate, authorize("admin", "staff"), getAllUsers);
+router.get("/:id", authenticate, authorize("admin", "staff"), getUserById);
+router.post("/", authenticate, authorize("admin", "staff"), createUser);
+router.put("/:id", authenticate, authorize("admin", "staff"), updateUser);
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorize("admin", "staff"),
+  patchUserStatus,
+);
+router.delete("/:id", authenticate, authorize("admin", "staff"), deleteUser);
 
 export default router;

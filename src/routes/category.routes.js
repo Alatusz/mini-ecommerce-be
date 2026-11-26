@@ -28,9 +28,8 @@ router.patch(
   "/:id/status",
   authenticate,
   authorize("admin", "staff"),
-  patchCategoryStatus
+  patchCategoryStatus,
 );
 router.delete("/:id", authenticate, authorize("admin"), deleteCategory);
-router.patch("/:id/status", patchCategoryStatus);
 
 export default router;

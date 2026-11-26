@@ -9,7 +9,7 @@ import { authenticate, authorize } from "../services/auth.service.js";
 
 const router = express.Router();
 
-// Public: Storefront ใช้ดึงตัวเลือกจัดส่งที่เปิดใช้งานอยู่
+// User: Storefront ใช้ดึงตัวเลือกจัดส่งที่เปิดใช้งานอยู่
 router.get("/", getActiveShippingRates);
 
 // Admin / Staff: จัดการอัตราค่าจัดส่ง
