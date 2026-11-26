@@ -6,6 +6,7 @@ import {
   cancelOrder,
   getAllOrders,
   updateOrderStatus,
+  rateOrderItem,
 } from "../controllers/order.controller.js";
 import { authenticate, authorize } from "../services/auth.service.js";
 
@@ -30,6 +31,9 @@ router.get("/:id", getOrderById);
 router.put("/:id/cancel", cancelOrder);
 router.patch("/:id/cancel", cancelOrder);
 
+// 5.
+router.patch("/items/:itemId/rating", rateOrderItem);
+
 /**
  * Admin / Staff Protected Routes
  */
@@ -42,4 +46,3 @@ router.put("/:id/status", authorize("admin", "staff"), updateOrderStatus);
 router.patch("/:id/status", authorize("admin", "staff"), updateOrderStatus);
 
 export default router;
-

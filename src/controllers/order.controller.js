@@ -5,6 +5,7 @@ import {
   cancelOrderService,
   getAllOrdersService,
   updateOrderStatusService,
+  rateOrderItemService,
 } from "../services/order.services.js";
 
 /**
@@ -186,6 +187,36 @@ export const updateOrderStatus = async (req, res) => {
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to update order status",
+    });
+  }
+};
+
+export const rateOrderItem = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const itemId = req.params.itemId;
+    const { rating } = req.body;
+
+    const data = await rateOrderItemService(userId, {
+      itemId,
+      rating,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Rating submitted successfully",
+      data: data,
+    });
+  } catch (error) {
+    let statusCode = 400;
+    
+    if (error.message === "Order item not found") statusCode = 404;
+    else if (error.message === "Unauthorized to rate this order")
+      statusCode = 403;
+
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "Failed to submit rating",
     });
   }
 };

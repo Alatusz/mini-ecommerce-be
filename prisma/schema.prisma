@@ -107,6 +107,9 @@ model Product {
   categoryId String
   categories Category @relation(fields: [categoryId], references: [id])
 
+  ratingAvg   Float @default(0)
+  ratingCount Int   @default(0)
+
   cartItems CartItem[]
 
   orderItems OrderItem[]
@@ -200,6 +203,8 @@ model OrderItem {
 
   price    Int
   quantity Int @default(1)
+
+  rating Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
