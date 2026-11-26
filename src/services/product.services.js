@@ -209,7 +209,6 @@ export const getAllProductsService = async ({
     name: prod.name,
     sku: prod.slug ? prod.slug.toUpperCase() : prod.id,
     description: prod.description || null,
-    originalPrice: prod.originalPrice,
     sellPrice: prod.sellPrice,
     stock: prod.stock,
     stockStatus: computeStockStatus(prod.stock),
@@ -287,17 +286,14 @@ export const getProductByIdService = async (id) => {
     }),
   ]);
 
-  const ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  for (const group of ratingGroups) {
-    if (group.rating >= 1 && group.rating <= 5) {
-      ratingBreakdown[group.rating] = group._count.id;
-    }
-  }
+  const ratingCount = ratingGroups.reduce((sum, g) => sum + g._count.id, 0);
 
-  const totalRatingCount = Object.values(ratingBreakdown).reduce(
-    (sum, count) => sum + count,
-    0,
-  );
+  const ratingBars = [5, 4, 3, 2, 1].map((star) => {
+    const count = ratingGroups.find((g) => g.rating === star)?._count.id ?? 0;
+    const percent =
+      ratingCount > 0 ? Math.round((count / ratingCount) * 100) : 0;
+    return { star, count, percent };
+  });
 
   const reviews = reviewItems.map((item) => {
     const fullName = [item.order?.user?.firstName, item.order?.user?.lastName]
@@ -318,7 +314,6 @@ export const getProductByIdService = async (id) => {
     name: product.name,
     sku: product.slug ? product.slug.toUpperCase() : product.id,
     description: product.description || null,
-    originalPrice: product.originalPrice,
     sellPrice: product.sellPrice,
     stock: product.stock,
     stockStatus: computeStockStatus(product.stock),
@@ -326,8 +321,8 @@ export const getProductByIdService = async (id) => {
     status: product.status,
     categories: product.categories ? [product.categories] : [],
     ratingAvg: product.ratingAvg ?? 0,
-    ratingCount: totalRatingCount,
-    ratingBreakdown,
+    ratingCount,
+    ratingBars,
     reviews,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
@@ -337,7 +332,6 @@ export const createProductService = async ({
   name,
   slug,
   description,
-  originalPrice,
   sellPrice,
   stock,
   images,
@@ -382,7 +376,6 @@ export const createProductService = async ({
       name: cleanName,
       slug: finalSlug,
       description: description || null,
-      originalPrice: originalPrice,
       sellPrice: sellPrice || null,
       stock: stock || 0,
       images: images || [],
@@ -399,7 +392,6 @@ export const updateProductService = async (
     name,
     slug,
     description,
-    originalPrice,
     sellPrice,
     stock,
     images,
@@ -464,9 +456,6 @@ export const updateProductService = async (
 
   if (description !== undefined) {
     updateData.description = description || null;
-  }
-  if (originalPrice !== undefined) {
-    updateData.originalPrice = originalPrice;
   }
   if (sellPrice !== undefined) {
     updateData.sellPrice = sellPrice;

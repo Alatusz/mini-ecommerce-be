@@ -30,7 +30,6 @@ export const getCartService = async (userId) => {
               id: true,
               name: true,
               slug: true,
-              originalPrice: true,
               sellPrice: true,
               images: true,
               stock: true,
@@ -50,7 +49,7 @@ export const getCartService = async (userId) => {
   );
 
   const totalPrice = cartWithItems.items.reduce((sum, item) => {
-    const price = item.product.sellPrice ?? item.product.originalPrice ?? 0;
+    const price = item.product.sellPrice ?? 0;
 
     return sum + price * item.quantity;
   }, 0);

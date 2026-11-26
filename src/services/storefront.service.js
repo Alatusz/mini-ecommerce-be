@@ -36,14 +36,13 @@ export const getStorefrontCategoriesService = async ({ limit = 50 } = {}) => {
 
 /**
  * Storefront: ดึงรายการสินค้าที่เผยแพร่ (published) เฉพาะฟิลด์ที่จำเป็น
- * รองรับ search, category, minPrice, maxPrice, onSale, sort, page, limit
+ * รองรับ search, category, minPrice, maxPrice, sort, page, limit
  */
 export const getStorefrontProductsService = async ({
   search,
   category,
   minPrice,
   maxPrice,
-  onSale,
   sort = "newest",
   page = 1,
   limit = 15,
@@ -83,10 +82,6 @@ export const getStorefrontProductsService = async ({
     conditions.push({ sellPrice: { lte: maxP } });
   }
 
-  if (onSale === true || onSale === "true") {
-    conditions.push({ originalPrice: { not: null } });
-  }
-
   const where = { AND: conditions };
 
   let orderBy = { createdAt: "desc" };
@@ -108,7 +103,6 @@ export const getStorefrontProductsService = async ({
         id: true,
         name: true,
         slug: true,
-        originalPrice: true,
         sellPrice: true,
         stock: true,
         images: true,
@@ -124,7 +118,6 @@ export const getStorefrontProductsService = async ({
     id: p.id,
     name: p.name,
     slug: p.slug,
-    originalPrice: p.originalPrice,
     sellPrice: p.sellPrice,
     stock: p.stock,
     image: p.images?.[0] || null,
