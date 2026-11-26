@@ -204,7 +204,9 @@ model OrderItem {
   price    Int
   quantity Int @default(1)
 
-  rating Int @default(0)
+  rating  Int       @default(0)
+  review  String?
+  ratedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -528,8 +528,17 @@ export const updateOrderStatusService = async (
   return updatedOrder;
 };
 
-export const rateOrderItemService = async (userId, { itemId, rating }) => {
+export const rateOrderItemService = async (
+  userId,
+  { itemId, rating, review },
+) => {
   const parsedRating = Number(rating);
+
+  const cleanReview = typeof review === "string" ? review.trim() || null : null;
+
+  if (cleanReview && cleanReview.length > 500) {
+    throw new Error("Review must not exceed 500 characters");
+  }
 
   if (!Number.isInteger(parsedRating) || parsedRating < 1 || parsedRating > 5) {
     throw new Error("Rating must be an integer between 1 and 5");
@@ -557,9 +566,15 @@ export const rateOrderItemService = async (userId, { itemId, rating }) => {
       throw new Error("You have already rated this item");
     }
 
-    const update = await tx.orderItem.update({
+    const ratedAt = new Date();
+
+    await tx.orderItem.update({
       where: { id: itemId },
-      data: { rating: parsedRating },
+      data: {
+        rating: parsedRating,
+        review: cleanReview,
+        ratedAt,
+      },
     });
 
     const newCount = item.product.ratingCount + 1;
@@ -573,7 +588,10 @@ export const rateOrderItemService = async (userId, { itemId, rating }) => {
 
     await tx.product.update({
       where: { id: item.productId },
-      data: { ratingCount: newCount, ratingAvg: newAvg },
+      data: {
+        ratingCount: newCount,
+        ratingAvg: newAvg,
+      },
     });
 
     return {
@@ -582,6 +600,8 @@ export const rateOrderItemService = async (userId, { itemId, rating }) => {
       rating: parsedRating,
       ratingAvg: newAvg,
       ratingCount: newCount,
+      review: cleanReview,
+      ratedAt,
     };
   });
 };

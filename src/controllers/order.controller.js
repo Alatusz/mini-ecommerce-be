@@ -195,11 +195,12 @@ export const rateOrderItem = async (req, res) => {
   try {
     const userId = req.user.id;
     const itemId = req.params.itemId;
-    const { rating } = req.body;
+    const { rating, review } = req.body;
 
     const data = await rateOrderItemService(userId, {
       itemId,
       rating,
+      review,
     });
 
     return res.status(200).json({
@@ -209,7 +210,7 @@ export const rateOrderItem = async (req, res) => {
     });
   } catch (error) {
     let statusCode = 400;
-    
+
     if (error.message === "Order item not found") statusCode = 404;
     else if (error.message === "Unauthorized to rate this order")
       statusCode = 403;
